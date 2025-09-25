@@ -58,6 +58,28 @@ Each chunk preserves the original frontmatter and adds:
 - `section_path`: Hierarchical breadcrumb of headers
 - `char_count` and `word_count`: Size metrics
 
+### 3. Merging Chunks to JSON
+
+Combine all chunks into a single JSON file for bulk processing:
+
+```bash
+# Merge all chunks into a JSON file
+python3 merge_chunks.py chunks -o merged_chunks.json
+
+# With pretty formatting for readability
+python3 merge_chunks.py chunks -o merged_chunks.json --pretty
+
+# From a custom directory
+python3 merge_chunks.py my_chunks/ -o output.json
+```
+
+Each chunk in the JSON includes:
+* `original_url` - Source URL
+* `scrape_date` - When scraped
+* `title` - Page title
+* `chunk_index` - Position in source
+* `content` - The chunk text
+
 ### Quick Start
 
 ```bash
@@ -69,6 +91,9 @@ echo "https://example.com/article" > urls.txt
 
 # 3. Chunk the scraped content
 python3 chunkify.py scrapes/ --out chunks
+
+# 4. Merge chunks to JSON (optional)
+python3 merge_chunks.py chunks -o merged.json --pretty
 ```
 
 ## File Structure
@@ -78,7 +103,9 @@ python3 chunkify.py scrapes/ --out chunks
 ├── urls.txt           # List of URLs to scrape
 ├── scraper.py         # Web scraping script
 ├── chunkify.py        # Markdown chunking script
+├── merge_chunks.py    # Merge chunks to JSON
 ├── scrapes/           # Scraped markdown files (default output)
-└── chunks/            # Chunked markdown files
+├── chunks/            # Chunked markdown files
+└── merged.json        # Combined chunks in JSON format
 ```
 
