@@ -18,9 +18,10 @@ import sys
 import uuid
 import json
 import re
+import yaml
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 
 # --- deps ---
 try:
@@ -52,6 +53,24 @@ def ensure_dir(p: Path):
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
+
+def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
+    """
+    Extract YAML frontmatter from markdown text.
+    Returns (frontmatter_dict, content_without_frontmatter)
+    """
+    if text.startswith('---\n'):
+        try:
+            # Find the closing ---
+            end_marker = text.find('\n---\n', 4)
+            if end_marker != -1:
+                fm_text = text[4:end_marker]
+                content = text[end_marker + 5:]  # Skip past \n---\n
+                fm_dict = yaml.safe_load(fm_text) or {}
+                return fm_dict, content
+        except yaml.YAMLError:
+            pass
+    return {}, text
 
 def write_text(path: Path, text: str):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -136,24 +155,32 @@ def build_front_matter(
     text: str,
     chunk_size: int,
     chunk_overlap: int,
+    original_frontmatter: Dict[str, Any] = None,
 ) -> str:
     """
     Returns YAML front matter as a string (without the trailing content).
+    Preserves original frontmatter fields and adds chunk-specific metadata.
     """
-    fm = {
-        "id": chunk_id,
-        "created_at": now_iso(),
+    # Start with original frontmatter if provided
+    fm = dict(original_frontmatter) if original_frontmatter else {}
+
+    # Add/update chunk-specific metadata
+    chunk_meta = {
+        "chunk_id": chunk_id,
+        "chunk_created_at": now_iso(),
         "source_file": source_file.replace(os.sep, "/"),
         "chunk_index": chunk_index,
-        "total_chunks_in_file": total_chunks_in_file,
+        "total_chunks": total_chunks_in_file,
         "section_path": section_breadcrumb,             # ordered list of headers
         "section_level": section_level,
-        "headers": section_meta,                         # raw header map from LangChain
+        "section_headers": section_meta,                 # raw header map from LangChain
         "char_count": len(text),
+        "word_count": len(text.split()),
         "splitter": "MarkdownHeaderTextSplitter+MarkdownTextSplitter",
         "chunk_size": chunk_size,
         "chunk_overlap": chunk_overlap,
     }
+    fm.update(chunk_meta)
     try:
         import yaml  # type: ignore
         fm_yaml = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True).strip()
@@ -171,13 +198,14 @@ def make_output_name(
     breadcrumb: List[str],
 ) -> Path:
     """
-    Make a readable file name like: page-name/h1-h2--chunk-0003.md
+    Make a flat file name like: original_file_0003.md
     """
-    base_no_ext = rel_src.with_suffix("")  # keep directory structure
-    # Combine deep title for readability
-    title = "-".join([slugify(s) for s in breadcrumb][:4]) or "root"
-    fname = f"{title}--chunk-{chunk_index:04d}.md"
-    return base_path / base_no_ext / fname
+    # Get just the filename without extension
+    original_name = rel_src.stem
+    # Create simple filename with chunk number
+    fname = f"{original_name}_{chunk_index:04d}.md"
+    # Return path directly in base directory (flat structure)
+    return base_path / fname
 
 
 def process_file(
@@ -188,7 +216,9 @@ def process_file(
     headers_to_split_on: List[Tuple[str, str]],
     root_path: Path,
 ) -> int:
-    text = read_text(src_path)
+    full_text = read_text(src_path)
+    # Parse frontmatter from the original file
+    original_frontmatter, text = parse_frontmatter(full_text)
     chunks = chunk_markdown_text(
         text=text,
         headers_to_split_on=headers_to_split_on,
@@ -211,6 +241,7 @@ def process_file(
             text=ch["text"],
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            original_frontmatter=original_frontmatter,
         )
         body = ch["text"]
         content = fm + "\n" + body + "\n"
