@@ -20,6 +20,9 @@ test_output/
 test_clean_output/
 output_backup/
 chunks/
+merged_chunks.json
+merged.json
+*.merged.json
 
 # Test files
 test_*.txt
