@@ -19,6 +19,7 @@ output/
 test_output/
 test_clean_output/
 output_backup/
+chunks/
 
 # Test files
 test_*.txt
