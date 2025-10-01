@@ -1,11 +1,11 @@
-# markdownify
+# site2chunks
 
-Transform web sites to markdown files for later processing - probably for AI use 😜
+Transform web sites to markdown files and chunk them.
 
 Websites I look at:
 
-* getA12 / Doc
-* HackingWithSwift / SwiftUI in 100 Days
+* getA12 / Doc (internal to [mgm technology partners](https://www.mgm-tp.com/a12.html) at thge time of writing)
+* HackingWithSwift / [100 Days of SwiftUI](https://www.hackingwithswift.com/100/swiftui/)
 
 ## Setup
 
