@@ -21,11 +21,20 @@ pip install -r requirements.txt
 Scrape websites and convert them to markdown with frontmatter:
 
 ```bash
+# Using config file (recommended): reads settings from scrape_config.yaml
+python3 scraper.py
+
 # Basic scraping: scrape all URLs from urls.txt
 python3 scraper.py urls.txt
 
 # Recursive crawling: discover and scrape linked pages from the same domain
 python3 scraper.py urls.txt --recursive
+
+# Recursive crawling with hop limit (max 2 hops from seed URLs)
+python3 scraper.py urls.txt --recursive --max-hops 2
+
+# Skip specific URL patterns (supports wildcards)
+python3 scraper.py urls.txt --recursive --skip-pattern "*/users/*" --skip-pattern "*/login"
 
 # Start from scratch (ignore previous scraping state)
 python3 scraper.py urls.txt --recursive --ignore-scraping-state
@@ -37,14 +46,56 @@ python3 scraper.py "https://example.com/page" -o scrapes/custom_name.md
 python3 scraper.py urls.txt -o my_scrapes/
 ```
 
+#### Configuration File (scrape_config.yaml)
+
+The scraper can be configured using a YAML file for easier management of scraping rules:
+
+```yaml
+# Input file containing seed URLs (one per line)
+urls_file: urls.txt
+
+# Output directory for scraped markdown files
+output_dir: scrapes
+
+# Enable recursive crawling
+recursive: true
+
+# Maximum number of hops from seed URLs (0 = only seed URLs, null = unlimited)
+max_hops: 2
+
+# URL patterns to skip (supports wildcards: * for any characters)
+skip_patterns:
+  - "https://www.hackingwithswift.com/users/*"
+  - "*/login"
+  - "*/register"
+  - "*/auth/*"
+
+# State files for tracking scraping progress
+state_files:
+  urls_to_scrape: urls_to_scrape.txt
+  urls_scraped: urls_scraped.txt
+
+# Whether to ignore existing scraping state and start fresh
+ignore_scraping_state: false
+```
+
+When `scrape_config.yaml` exists, you can simply run:
+```bash
+python3 scraper.py
+```
+
+Command-line arguments will override config file settings.
+
 #### Recursive Crawling Features
 
 When using `--recursive`, the scraper will:
 - Extract all URLs from each scraped page
 - Only scrape URLs from the same domain
 - Automatically convert relative URLs to absolute URLs
+- Respect hop limits (distance from seed URLs)
+- Skip URLs matching configured patterns
 - Track scraping progress in state files:
-  - `urls_to_scrape.txt` - URLs waiting to be scraped
+  - `urls_to_scrape.txt` - URLs waiting to be scraped (with hop count)
   - `urls_scraped.txt` - URLs already processed
 
 **Resumable Scraping**: If interrupted, simply run the command again without `--ignore-scraping-state` to continue where you left off. The scraper will skip already-scraped URLs automatically.
@@ -101,27 +152,36 @@ Each chunk in the JSON includes:
 ### Quick Start
 
 ```bash
-# 1. Add URLs to urls.txt (one per line)
+# 1. Configure your scraping (optional but recommended)
+#    Edit scrape_config.yaml to set:
+#    - urls_file: path to your URLs file
+#    - max_hops: how far to crawl from seed URLs
+#    - skip_patterns: URL patterns to avoid
+
+# 2. Add URLs to urls.txt (one per line)
 echo "https://example.com/article" > urls.txt
 
-# 2. Scrape the URLs with recursive crawling
-./crawl.sh  # or: python3 scraper.py urls.txt --recursive
+# 3. Scrape the URLs
+python3 scraper.py  # Uses scrape_config.yaml if present
+# OR
+./crawl.sh  # Uses default recursive settings
 
-# 3. Chunk the scraped content
+# 4. Chunk the scraped content
 python3 chunkify.py scrapes/ --out chunks
 
-# 4. Merge chunks to JSON (optional)
+# 5. Merge chunks to JSON (optional)
 python3 merge_chunks.py chunks -o merged.json --pretty
 ```
 
-**Note**: The scraper with `--recursive` will discover and scrape linked pages automatically. To start fresh, use `--ignore-scraping-state`.
+**Note**: With `--recursive`, the scraper discovers and scrapes linked pages automatically. Use `max_hops` to limit crawling depth and `skip_patterns` to exclude unwanted URLs.
 
 ## File Structure
 
 ```
 .
+├── scrape_config.yaml    # Configuration file for scraping rules
 ├── urls.txt              # List of URLs to scrape (seed URLs)
-├── urls_to_scrape.txt    # Queue of URLs to scrape (recursive mode)
+├── urls_to_scrape.txt    # Queue of URLs to scrape (recursive mode, with hop counts)
 ├── urls_scraped.txt      # Already scraped URLs (recursive mode)
 ├── scraper.py            # Web scraping script
 ├── chunkify.py           # Markdown chunking script
@@ -132,5 +192,7 @@ python3 merge_chunks.py chunks -o merged.json --pretty
 └── merged.json           # Combined chunks in JSON format
 ```
 
-**State Files**: When using `--recursive`, the scraper maintains state in `urls_to_scrape.txt` and `urls_scraped.txt`. Delete these files (or use `--ignore-scraping-state`) to start a fresh crawl.
+**Configuration File**: `scrape_config.yaml` allows you to configure scraping behavior including hop limits, skip patterns, and output directories.
+
+**State Files**: When using `--recursive`, the scraper maintains state in `urls_to_scrape.txt` (with hop counts stored as JSON) and `urls_scraped.txt`. Delete these files (or use `--ignore-scraping-state`) to start a fresh crawl.
 

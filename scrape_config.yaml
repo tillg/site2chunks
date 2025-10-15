@@ -1,0 +1,29 @@
+# Web Scraping Configuration
+# This file controls the behavior of scraper.py
+
+# Input file containing seed URLs (one per line)
+urls_file: urls.txt
+
+# Output directory for scraped markdown files
+output_dir: scrapes
+
+# Enable recursive crawling to discover and scrape linked pages
+recursive: true
+
+# Maximum number of hops from seed URLs (0 = only seed URLs, null = unlimited)
+max_hops: 2
+
+# URL patterns to skip (supports wildcards: * for any characters)
+skip_patterns:
+  - "https://www.hackingwithswift.com/users/*"
+  - "*/login"
+  - "*/register"
+  - "*/auth/*"
+
+# State files for tracking scraping progress
+state_files:
+  urls_to_scrape: urls_to_scrape.txt
+  urls_scraped: urls_scraped.txt
+
+# Whether to ignore existing scraping state and start fresh
+ignore_scraping_state: false

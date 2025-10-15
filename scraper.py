@@ -3,23 +3,64 @@
 Web scraper that converts web pages to markdown with frontmatter.
 Uses markdownify for HTML to markdown conversion.
 Supports recursive crawling with state management.
+Supports YAML configuration for flexible scraping rules.
 """
 
 import sys
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, urljoin
+import fnmatch
+import json
 import requests
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
+import yaml
+
+
+def match_url_pattern(url, pattern):
+    """
+    Check if a URL matches a pattern (supports wildcards).
+
+    Args:
+        url: The URL to check
+        pattern: The pattern to match against (supports * wildcard)
+
+    Returns:
+        True if the URL matches the pattern
+    """
+    return fnmatch.fnmatch(url, pattern)
+
+
+def should_skip_url(url, skip_patterns):
+    """
+    Check if a URL should be skipped based on skip patterns.
+
+    Args:
+        url: The URL to check
+        skip_patterns: List of patterns to match against
+
+    Returns:
+        True if the URL should be skipped
+    """
+    if not skip_patterns:
+        return False
+
+    for pattern in skip_patterns:
+        if match_url_pattern(url, pattern):
+            return True
+
+    return False
 
 
 class URLQueue:
-    """Manages the queue of URLs to scrape and tracks scraped URLs."""
+    """Manages the queue of URLs to scrape and tracks scraped URLs with hop counting."""
 
     def __init__(self, urls_to_scrape_file="urls_to_scrape.txt",
                  urls_scraped_file="urls_scraped.txt",
-                 ignore_state=False):
+                 ignore_state=False,
+                 max_hops=None,
+                 skip_patterns=None):
         """
         Initialize the URL queue manager.
 
@@ -27,13 +68,18 @@ class URLQueue:
             urls_to_scrape_file: Path to file storing URLs to scrape
             urls_scraped_file: Path to file storing already scraped URLs
             ignore_state: If True, ignore existing state files and start fresh
+            max_hops: Maximum number of hops from seed URLs (None = unlimited)
+            skip_patterns: List of URL patterns to skip
         """
         self.urls_to_scrape_file = Path(urls_to_scrape_file)
         self.urls_scraped_file = Path(urls_scraped_file)
+        self.max_hops = max_hops
+        self.skip_patterns = skip_patterns or []
+        self.current_url_hop = {}  # Track hop count for URLs being processed
 
         if ignore_state:
             # Start fresh - clear any existing state
-            self.urls_to_scrape = []
+            self.urls_to_scrape = []  # List of dicts: {'url': str, 'hop': int}
             self.urls_scraped = set()
             # Remove state files if they exist
             self.urls_to_scrape_file.unlink(missing_ok=True)
@@ -44,10 +90,21 @@ class URLQueue:
             self.urls_scraped = self._load_urls_scraped()
 
     def _load_urls_to_scrape(self):
-        """Load the list of URLs to scrape from file."""
+        """Load the list of URLs to scrape from file (with hop count)."""
         if self.urls_to_scrape_file.exists():
             with open(self.urls_to_scrape_file, 'r') as f:
-                urls = [line.strip() for line in f if line.strip()]
+                urls = []
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Try to parse as JSON (new format with hop count)
+                    try:
+                        url_data = json.loads(line)
+                        urls.append(url_data)
+                    except json.JSONDecodeError:
+                        # Legacy format: just URL strings (assume hop 0)
+                        urls.append({'url': line, 'hop': 0})
             print(f"Loaded {len(urls)} URLs from {self.urls_to_scrape_file}")
             return urls
         return []
@@ -62,10 +119,10 @@ class URLQueue:
         return set()
 
     def save_urls_to_scrape(self):
-        """Save the list of URLs to scrape to file."""
+        """Save the list of URLs to scrape to file (with hop count)."""
         with open(self.urls_to_scrape_file, 'w') as f:
-            for url in self.urls_to_scrape:
-                f.write(f"{url}\n")
+            for url_data in self.urls_to_scrape:
+                f.write(json.dumps(url_data) + "\n")
 
     def save_urls_scraped(self):
         """Save the set of scraped URLs to file."""
@@ -73,35 +130,91 @@ class URLQueue:
             for url in sorted(self.urls_scraped):
                 f.write(f"{url}\n")
 
-    def add_url_to_scrape(self, url):
-        """Add a URL to the scraping queue if not already scraped."""
-        if url not in self.urls_scraped and url not in self.urls_to_scrape:
-            self.urls_to_scrape.append(url)
-            self.save_urls_to_scrape()
-            return True
-        return False
+    def add_url_to_scrape(self, url, hop=0):
+        """
+        Add a URL to the scraping queue if not already scraped.
+
+        Args:
+            url: The URL to add
+            hop: The hop count from seed URLs
+
+        Returns:
+            True if URL was added, False if skipped
+        """
+        # Check if URL should be skipped based on patterns
+        if should_skip_url(url, self.skip_patterns):
+            return False
+
+        # Check if hop count exceeds max_hops
+        if self.max_hops is not None and hop > self.max_hops:
+            return False
+
+        # Check if already scraped or in queue
+        if url in self.urls_scraped:
+            return False
+
+        # Check if already in queue
+        for url_data in self.urls_to_scrape:
+            if url_data['url'] == url:
+                return False
+
+        # Add to queue
+        self.urls_to_scrape.append({'url': url, 'hop': hop})
+        self.save_urls_to_scrape()
+        return True
 
     def mark_as_scraped(self, url):
         """Mark a URL as scraped."""
         self.urls_scraped.add(url)
         self.save_urls_scraped()
         # Remove from to_scrape list if present
-        if url in self.urls_to_scrape:
-            self.urls_to_scrape.remove(url)
-            self.save_urls_to_scrape()
+        self.urls_to_scrape = [u for u in self.urls_to_scrape if u['url'] != url]
+        self.save_urls_to_scrape()
 
     def get_next_url(self):
-        """Get the next URL to scrape, or None if queue is empty."""
+        """
+        Get the next URL to scrape, or None if queue is empty.
+        Also stores the hop count for the URL being processed.
+
+        Returns:
+            URL string or None
+        """
         if self.urls_to_scrape:
-            return self.urls_to_scrape[0]
+            url_data = self.urls_to_scrape[0]
+            url = url_data['url']
+            # Store hop count for this URL
+            self.current_url_hop[url] = url_data['hop']
+            return url
         return None
+
+    def get_url_hop_count(self, url):
+        """
+        Get the hop count for a URL.
+
+        Args:
+            url: The URL to look up
+
+        Returns:
+            The hop count for the URL (0 if not found, meaning it's a seed URL)
+        """
+        # First check if it's the current URL being processed
+        if url in self.current_url_hop:
+            return self.current_url_hop[url]
+
+        # Check if URL is in the queue
+        for url_data in self.urls_to_scrape:
+            if url_data['url'] == url:
+                return url_data['hop']
+
+        # Default to 0 (seed URL hop count)
+        return 0
 
     def has_urls_to_scrape(self):
         """Check if there are more URLs to scrape."""
         return len(self.urls_to_scrape) > 0
 
     def initialize_from_file(self, urls_file):
-        """Initialize the queue from a URLs file."""
+        """Initialize the queue from a URLs file (seed URLs at hop 0)."""
         urls_path = Path(urls_file)
         if not urls_path.exists():
             print(f"Error: URLs file '{urls_file}' not found")
@@ -110,16 +223,18 @@ class URLQueue:
         with open(urls_path, 'r') as f:
             urls = [line.strip() for line in f if line.strip()]
 
-        # Add all URLs to the queue
+        # Add all URLs to the queue with hop count 0 (seed URLs)
         added_count = 0
+        skipped_count = 0
         for url in urls:
-            if self.add_url_to_scrape(url):
+            if self.add_url_to_scrape(url, hop=0):
                 added_count += 1
+            else:
+                skipped_count += 1
 
-        print(f"Initialized queue with {added_count} URLs from {urls_file}")
-        if len(urls) > added_count:
-            skipped = len(urls) - added_count
-            print(f"Skipped {skipped} URLs (already scraped or in queue)")
+        print(f"Initialized queue with {added_count} seed URLs from {urls_file}")
+        if skipped_count > 0:
+            print(f"Skipped {skipped_count} URLs (already scraped, in queue, or matched skip pattern)")
 
 
 def extract_urls_from_html(html_content, base_url):
@@ -265,14 +380,36 @@ title: {title}
         # Extract URLs if URL queue is provided
         discovered_urls = []
         if url_queue is not None:
+            # Get current hop count for this URL
+            current_hop = url_queue.get_url_hop_count(url)
+            next_hop = current_hop + 1
+
             discovered_urls = extract_urls_from_html(html_content, url)
             new_urls_count = 0
+            skipped_by_pattern = 0
+            skipped_by_hop = 0
+
             for discovered_url in discovered_urls:
-                if url_queue.add_url_to_scrape(discovered_url):
+                # Check skip patterns first (for reporting)
+                if should_skip_url(discovered_url, url_queue.skip_patterns):
+                    skipped_by_pattern += 1
+                    continue
+
+                # Check hop limit
+                if url_queue.max_hops is not None and next_hop > url_queue.max_hops:
+                    skipped_by_hop += 1
+                    continue
+
+                # Try to add URL
+                if url_queue.add_url_to_scrape(discovered_url, hop=next_hop):
                     new_urls_count += 1
 
             if new_urls_count > 0:
-                print(f"  ↳ Discovered {new_urls_count} new URLs to scrape")
+                print(f"  ↳ Discovered {new_urls_count} new URLs to scrape (hop {next_hop})")
+            if skipped_by_pattern > 0:
+                print(f"  ↳ Skipped {skipped_by_pattern} URLs (matched skip patterns)")
+            if skipped_by_hop > 0:
+                print(f"  ↳ Skipped {skipped_by_hop} URLs (exceeded max hops: {url_queue.max_hops})")
 
         return (file_path, discovered_urls)
 
@@ -284,7 +421,32 @@ title: {title}
         return (None, [])
 
 
-def scrape_urls_file(urls_file, output_dir="scrapes", ignore_state=False, recursive=True):
+def load_config(config_file="scrape_config.yaml"):
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_file: Path to configuration file
+
+    Returns:
+        Dictionary with configuration or None if file doesn't exist
+    """
+    config_path = Path(config_file)
+    if not config_path.exists():
+        return None
+
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        print(f"Loaded configuration from {config_file}")
+        return config
+    except Exception as e:
+        print(f"Error loading config file: {e}")
+        return None
+
+
+def scrape_urls_file(urls_file, output_dir="scrapes", ignore_state=False, recursive=True,
+                     max_hops=None, skip_patterns=None, state_files=None):
     """
     Scrape all URLs from a file with recursive crawling support.
 
@@ -293,9 +455,25 @@ def scrape_urls_file(urls_file, output_dir="scrapes", ignore_state=False, recurs
         output_dir: Directory to save output files
         ignore_state: If True, start from scratch ignoring any existing state
         recursive: If True, discover and scrape linked pages from the same domain
+        max_hops: Maximum number of hops from seed URLs (None = unlimited)
+        skip_patterns: List of URL patterns to skip
+        state_files: Dict with 'urls_to_scrape' and 'urls_scraped' file paths
     """
+    # Prepare state file paths
+    if state_files is None:
+        state_files = {
+            'urls_to_scrape': 'urls_to_scrape.txt',
+            'urls_scraped': 'urls_scraped.txt'
+        }
+
     # Initialize URL queue
-    url_queue = URLQueue(ignore_state=ignore_state) if recursive else None
+    url_queue = URLQueue(
+        urls_to_scrape_file=state_files['urls_to_scrape'],
+        urls_scraped_file=state_files['urls_scraped'],
+        ignore_state=ignore_state,
+        max_hops=max_hops,
+        skip_patterns=skip_patterns
+    ) if recursive else None
 
     if url_queue:
         # Initialize from URLs file
@@ -365,16 +543,17 @@ def main():
 
     parser = argparse.ArgumentParser(
         description='Scrape web pages and convert to markdown with frontmatter',
-        epilog='Supports recursive crawling with state management for resumable scraping.'
+        epilog='Supports recursive crawling with state management. Can be configured via scrape_config.yaml.'
     )
     parser.add_argument(
         'input',
-        help='URL to scrape OR path to file containing URLs'
+        nargs='?',
+        help='URL to scrape OR path to file containing URLs (optional if scrape_config.yaml exists)'
     )
     parser.add_argument(
         '-o', '--output',
         help='Output file name (for single URL) or directory (for multiple URLs)',
-        default='scrapes'
+        default=None
     )
     parser.add_argument(
         '-f', '--file',
@@ -384,35 +563,86 @@ def main():
     parser.add_argument(
         '--recursive',
         action='store_true',
-        default=False,
+        default=None,
         help='Enable recursive crawling: discover and scrape linked pages from the same domain'
     )
     parser.add_argument(
         '--ignore-scraping-state',
         action='store_true',
-        help='Start from scratch, ignoring any existing scraping state (urls_to_scrape.txt, urls_scraped.txt)'
+        help='Start from scratch, ignoring any existing scraping state'
+    )
+    parser.add_argument(
+        '--config',
+        default='scrape_config.yaml',
+        help='Path to configuration file (default: scrape_config.yaml)'
+    )
+    parser.add_argument(
+        '--max-hops',
+        type=int,
+        default=None,
+        help='Maximum number of hops from seed URLs'
+    )
+    parser.add_argument(
+        '--skip-pattern',
+        action='append',
+        dest='skip_patterns',
+        help='URL pattern to skip (can be specified multiple times)'
     )
 
     args = parser.parse_args()
 
-    if args.file or args.input.endswith('.txt'):
+    # Try to load config file
+    config = load_config(args.config)
+
+    # Determine parameters (command line args override config file)
+    if config:
+        urls_file = args.input if args.input else config.get('urls_file', 'urls.txt')
+        output_dir = args.output if args.output else config.get('output_dir', 'scrapes')
+        recursive = args.recursive if args.recursive is not None else config.get('recursive', False)
+        max_hops = args.max_hops if args.max_hops is not None else config.get('max_hops')
+        skip_patterns = args.skip_patterns if args.skip_patterns else config.get('skip_patterns', [])
+        state_files = config.get('state_files', {
+            'urls_to_scrape': 'urls_to_scrape.txt',
+            'urls_scraped': 'urls_scraped.txt'
+        })
+        ignore_state = args.ignore_scraping_state or config.get('ignore_scraping_state', False)
+    else:
+        # No config file - use command line args and defaults
+        if not args.input:
+            parser.error("input is required when no config file is present")
+        urls_file = args.input
+        output_dir = args.output if args.output else 'scrapes'
+        recursive = args.recursive if args.recursive is not None else False
+        max_hops = args.max_hops
+        skip_patterns = args.skip_patterns or []
+        state_files = {
+            'urls_to_scrape': 'urls_to_scrape.txt',
+            'urls_scraped': 'urls_scraped.txt'
+        }
+        ignore_state = args.ignore_scraping_state
+
+    # Check if input is a file or URL
+    if args.file or (urls_file and Path(urls_file).exists() and urls_file.endswith('.txt')):
         # Process URLs from file
         scrape_urls_file(
-            args.input,
-            args.output,
-            ignore_state=args.ignore_scraping_state,
-            recursive=args.recursive
+            urls_file,
+            output_dir,
+            ignore_state=ignore_state,
+            recursive=recursive,
+            max_hops=max_hops,
+            skip_patterns=skip_patterns,
+            state_files=state_files
         )
     else:
         # Process single URL
-        if args.output.endswith('.md'):
+        if output_dir and output_dir.endswith('.md'):
             # Specific output file provided
-            output_dir = Path(args.output).parent
-            output_file = Path(args.output).name
-            result, _ = scrape(args.input, output_file, output_dir or ".")
+            output_path = Path(output_dir).parent
+            output_file = Path(output_dir).name
+            result, _ = scrape(urls_file, output_file, output_path or ".")
         else:
             # Output directory provided
-            result, _ = scrape(args.input, output_dir=args.output)
+            result, _ = scrape(urls_file, output_dir=output_dir)
 
 
 if __name__ == "__main__":
