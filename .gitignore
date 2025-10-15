@@ -24,6 +24,10 @@ merged_chunks.json
 merged.json
 *.merged.json
 
+# Scraper state files
+urls_to_scrape.txt
+urls_scraped.txt
+
 # Test files
 test_*.txt
 test_*.md
