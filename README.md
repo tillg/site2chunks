@@ -21,8 +21,14 @@ pip install -r requirements.txt
 Scrape websites and convert them to markdown with frontmatter:
 
 ```bash
-# Scrape all URLs from urls.txt into scrapes/ directory
+# Basic scraping: scrape all URLs from urls.txt
 python3 scraper.py urls.txt
+
+# Recursive crawling: discover and scrape linked pages from the same domain
+python3 scraper.py urls.txt --recursive
+
+# Start from scratch (ignore previous scraping state)
+python3 scraper.py urls.txt --recursive --ignore-scraping-state
 
 # Scrape a single URL
 python3 scraper.py "https://example.com/page" -o scrapes/custom_name.md
@@ -30,6 +36,18 @@ python3 scraper.py "https://example.com/page" -o scrapes/custom_name.md
 # Scrape URLs from a file to a custom directory
 python3 scraper.py urls.txt -o my_scrapes/
 ```
+
+#### Recursive Crawling Features
+
+When using `--recursive`, the scraper will:
+- Extract all URLs from each scraped page
+- Only scrape URLs from the same domain
+- Automatically convert relative URLs to absolute URLs
+- Track scraping progress in state files:
+  - `urls_to_scrape.txt` - URLs waiting to be scraped
+  - `urls_scraped.txt` - URLs already processed
+
+**Resumable Scraping**: If interrupted, simply run the command again without `--ignore-scraping-state` to continue where you left off. The scraper will skip already-scraped URLs automatically.
 
 Each scraped file includes frontmatter with:
 - `original_url`: The source URL
@@ -86,8 +104,8 @@ Each chunk in the JSON includes:
 # 1. Add URLs to urls.txt (one per line)
 echo "https://example.com/article" > urls.txt
 
-# 2. Scrape the URLs
-./crawl.sh  # or: python3 scraper.py urls.txt
+# 2. Scrape the URLs with recursive crawling
+./crawl.sh  # or: python3 scraper.py urls.txt --recursive
 
 # 3. Chunk the scraped content
 python3 chunkify.py scrapes/ --out chunks
@@ -96,16 +114,23 @@ python3 chunkify.py scrapes/ --out chunks
 python3 merge_chunks.py chunks -o merged.json --pretty
 ```
 
+**Note**: The scraper with `--recursive` will discover and scrape linked pages automatically. To start fresh, use `--ignore-scraping-state`.
+
 ## File Structure
 
 ```
 .
-├── urls.txt           # List of URLs to scrape
-├── scraper.py         # Web scraping script
-├── chunkify.py        # Markdown chunking script
-├── merge_chunks.py    # Merge chunks to JSON
-├── scrapes/           # Scraped markdown files (default output)
-├── chunks/            # Chunked markdown files
-└── merged.json        # Combined chunks in JSON format
+├── urls.txt              # List of URLs to scrape (seed URLs)
+├── urls_to_scrape.txt    # Queue of URLs to scrape (recursive mode)
+├── urls_scraped.txt      # Already scraped URLs (recursive mode)
+├── scraper.py            # Web scraping script
+├── chunkify.py           # Markdown chunking script
+├── merge_chunks.py       # Merge chunks to JSON
+├── crawl.sh              # Convenience script for scraping
+├── scrapes/              # Scraped markdown files (default output)
+├── chunks/               # Chunked markdown files
+└── merged.json           # Combined chunks in JSON format
 ```
+
+**State Files**: When using `--recursive`, the scraper maintains state in `urls_to_scrape.txt` and `urls_scraped.txt`. Delete these files (or use `--ignore-scraping-state`) to start a fresh crawl.
 
