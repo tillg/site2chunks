@@ -55,10 +55,14 @@ rules:
     pattern: "Link copied to your pasteboard."
     max_remove: -1
 
-  # Remove empty header markers (social media section markers)
+  # Remove empty header markers (social media section markers and standalone H2)
   - type: line_pattern
-    description: "Empty header markers"
+    description: "Empty H4 header markers"
     pattern: '^####\s*$'
+
+  - type: line_pattern
+    description: "Empty H2 header markers"
+    pattern: '^##\s*$'
 
   # Note: We don't remove horizontal rules (---) as they are semantic elements
   # and could be part of actual content. They're also used for frontmatter delimiters.
@@ -164,6 +168,13 @@ rules:
     description: "100 Days of Swift/SwiftUI promotional blocks"
     pattern: '## 100 Days of Swift(?:UI)?\n\n---\n\nThe 100 Days of Swift(?:UI)? is a free collection of videos, tutorials, tests, and more to help you learn Swift(?:UI)? faster\. \[Click here to learn more\]\(/100(?:/swiftui)?\), or watch the video below\.'
     flags: [MULTILINE]
+
+  # Remove social sharing blocks with copy-paste text
+  - type: section_boundary
+    description: "Social sharing copy-paste blocks"
+    start_marker: "Alternatively, copy and paste the text below to your preferred social network"
+    end_marker: "via @twostraws"
+    inclusive: true
 
   # Remove HWS+ "SELECT A CATEGORY" navigation section
   # Uses regex to match the entire category list from header to end, handling both bolded and non-bolded last items
