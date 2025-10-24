@@ -60,9 +60,10 @@ rules:
     description: "Empty H4 header markers"
     pattern: '^####\s*$'
 
-  - type: line_pattern
-    description: "Empty H2 header markers"
-    pattern: '^##\s*$'
+  - type: regex
+    description: "Empty H2 header markers with surrounding blanks"
+    pattern: '\n##\s*\n\n'
+    flags: [MULTILINE]
 
   # Note: We don't remove horizontal rules (---) as they are semantic elements
   # and could be part of actual content. They're also used for frontmatter delimiters.
@@ -201,3 +202,9 @@ rules:
     start_marker: "## Hacking with Swift+ membership includes…"
     end_marker: "#### A free ticket to Unwrap Live every year"
     inclusive: true
+
+  # Clean up empty H2 headings left behind after content removal (run at end)
+  - type: regex
+    description: "Empty H2 headings cleanup (final pass)"
+    pattern: '\n\n##\s*\n'
+    flags: [MULTILINE]
