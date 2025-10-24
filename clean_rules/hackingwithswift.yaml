@@ -153,6 +153,12 @@ rules:
     pattern: "**BUY OUR BOOKS**"
     max_remove: -1
 
+  # Remove forum reply blocks
+  - type: regex
+    description: "Forum reply to topic blocks"
+    pattern: '### Reply to this topic…\n\nYou need to \[create an account or log in\]\(/login\?return=[^\)]+\) to reply\.\n\nAll interactions here are governed by our \[code of conduct\]\(/conduct\)\.'
+    flags: [MULTILINE]
+
   # Remove HWS+ "SELECT A CATEGORY" navigation section
   # Uses regex to match the entire category list from header to end, handling both bolded and non-bolded last items
   - type: regex
