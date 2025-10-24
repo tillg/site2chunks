@@ -203,6 +203,12 @@ rules:
     end_marker: "#### A free ticket to Unwrap Live every year"
     inclusive: true
 
+  # Remove article listings at end of article pages
+  - type: regex
+    description: "Related articles listing section"
+    pattern: '\[More articles\]\(/articles\).*'
+    flags: [MULTILINE, DOTALL]
+
   # Clean up empty H2 headings left behind after content removal (run at end)
   - type: regex
     description: "Empty H2 headings cleanup (final pass)"
