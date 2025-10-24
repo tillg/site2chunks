@@ -140,6 +140,11 @@ rules:
     description: "See full list of iOS interview questions link"
     pattern: '^\[See the full list of iOS interview questions\]'
 
+  # Remove return to review menu link
+  - type: line_pattern
+    description: "Return to Review Menu navigation link"
+    pattern: '^\[Return to Review Menu\]'
+
   # Remove standalone "Subscribe" text
   - type: line_pattern
     description: "Standalone Subscribe text"
