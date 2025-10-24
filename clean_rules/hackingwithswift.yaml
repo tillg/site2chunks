@@ -176,6 +176,12 @@ rules:
     end_marker: "via @twostraws"
     inclusive: true
 
+  # Remove "Have some questions about..." chat prompts
+  - type: regex
+    description: "Have some questions chat prompts"
+    pattern: '### Have some questions about .+?\?\n\nHit Send below to start a virtual conversation with me\.'
+    flags: [MULTILINE]
+
   # Remove HWS+ "SELECT A CATEGORY" navigation section
   # Uses regex to match the entire category list from header to end, handling both bolded and non-bolded last items
   - type: regex
