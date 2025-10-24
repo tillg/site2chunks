@@ -180,6 +180,12 @@ Create site-specific cleaning rules in YAML format in the `clean_rules/` directo
 ```yaml
 site: example.com
 
+# Files to delete entirely (no content value)
+# These will be deleted from output directory and skipped during processing
+delete_files:
+  - example.com_homepage.md
+  - example.com_about.md
+
 rules:
   # Remove exact text matches
   - type: exact_match
@@ -224,6 +230,7 @@ rules:
 - Site-specific configurations
 - Auto-detection from file domain
 - Dry-run mode for safe previewing
+- Delete entire files with no content value
 - Detailed statistics and warnings
 - Whitespace normalization
 
