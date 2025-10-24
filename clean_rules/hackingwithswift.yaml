@@ -165,7 +165,7 @@ rules:
   # Remove page rating widgets
   - type: regex
     description: "Page usefulness rating widgets"
-    pattern: 'Was this page useful\? Let us know!\n\n1\n2\n3\n4\n5\n\nAverage rating:.*?\n\nThank you!'
+    pattern: 'Was this page useful\? Let us know!\n\n1\n2\n3\n4\n5\n\n(?:Average rating:.*?\n\n)?Thank you!'
     flags: [MULTILINE, DOTALL]
 
   # Remove "BUY OUR BOOKS" promotional headers
@@ -243,6 +243,12 @@ rules:
     description: "Interactive quiz UI elements"
     pattern: '^(?:True|False|Choose Option \d+)\n(?:(?:True|False|Choose Option \d+)\n)+\nCorrect!.*?\n\nOops.*?\n\nContinue$'
     flags: [MULTILINE, DOTALL]
+
+  # Remove Swift version playground download and browse links
+  - type: regex
+    description: "Swift version playground download and navigation links"
+    pattern: '^\[Download all Swift [\d.]+ changes as a playground\]\(/files/playgrounds/swift/playground[^\)]+\)\n \[Link to Swift [\d.]+ changes\]\(/swift/[\d.]+\)\n\n\[Browse changes in all Swift versions\]\(/swift\)$'
+    flags: [MULTILINE]
 
   # Clean up empty H2 headings left behind after content removal (run at end)
   - type: regex
