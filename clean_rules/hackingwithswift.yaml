@@ -135,6 +135,11 @@ rules:
     description: "Older posts navigation"
     pattern: '^\[Older Posts\]'
 
+  # Remove interview questions link
+  - type: line_pattern
+    description: "See full list of iOS interview questions link"
+    pattern: '^\[See the full list of iOS interview questions\]'
+
   # Remove standalone "Subscribe" text
   - type: line_pattern
     description: "Standalone Subscribe text"
