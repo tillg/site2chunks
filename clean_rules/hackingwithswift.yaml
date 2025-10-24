@@ -238,6 +238,12 @@ rules:
     pattern: '\[More articles\]\(/articles\).*'
     flags: [MULTILINE, DOTALL]
 
+  # Remove interactive quiz UI elements (True/False and Choose Option patterns)
+  - type: regex
+    description: "Interactive quiz UI elements"
+    pattern: '^(?:True|False|Choose Option \d+)\n(?:(?:True|False|Choose Option \d+)\n)+\nCorrect!.*?\n\nOops.*?\n\nContinue$'
+    flags: [MULTILINE, DOTALL]
+
   # Clean up empty H2 headings left behind after content removal (run at end)
   - type: regex
     description: "Empty H2 headings cleanup (final pass)"
