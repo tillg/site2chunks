@@ -189,6 +189,19 @@ rules:
     pattern: '### Have some questions about .+?\?\n\nHit Send below to start a virtual conversation with me\.'
     flags: [MULTILINE]
 
+  # Remove "Found X articles in the Swift Knowledge Base" headers
+  - type: regex
+    description: "Swift Knowledge Base article count headers"
+    pattern: '### Found \d+ articles? in the \[Swift Knowledge Base\]\(/example-code\) for this category\.'
+    flags: [MULTILINE]
+
+  # Remove "About the Swift Knowledge Base" sections
+  - type: section_boundary
+    description: "About the Swift Knowledge Base promotional sections"
+    start_marker: "### About the Swift Knowledge Base"
+    end_marker: "Was this page useful? Let us know!"
+    inclusive: true
+
   # Remove HWS+ "SELECT A CATEGORY" navigation section
   # Uses regex to match the entire category list from header to end, handling both bolded and non-bolded last items
   - type: regex
