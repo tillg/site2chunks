@@ -27,6 +27,7 @@ class CleaningConfig:
     def __init__(self, config_path: str = None):
         self.site = ""
         self.rules: List[CleaningRule] = []
+        self.delete_files: List[str] = []
         self.config_path = config_path
 
         if config_path:
@@ -43,6 +44,7 @@ class CleaningConfig:
             config_data = yaml.safe_load(f)
 
         self.site = config_data.get('site', '')
+        self.delete_files = config_data.get('delete_files', [])
         rules_data = config_data.get('rules', [])
 
         # Instantiate rule objects from configuration

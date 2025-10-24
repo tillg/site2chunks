@@ -110,6 +110,10 @@ class ContentCleaner:
         results = []
 
         for file_path in files:
+            # Skip files in delete_files list
+            if file_path.name in self.config.delete_files:
+                continue
+
             try:
                 # Calculate output path
                 if output_dir:

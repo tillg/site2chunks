@@ -175,6 +175,24 @@ def main():
     # Create cleaner
     cleaner = ContentCleaner(config)
 
+    # Delete files listed in config (before cleaning)
+    if config.delete_files and output_arg:
+        output_path = Path(output_arg)
+        if output_path.exists():
+            deleted_count = 0
+            for filename in config.delete_files:
+                file_to_delete = output_path / filename
+                if file_to_delete.exists():
+                    if not dry_run:
+                        file_to_delete.unlink()
+                    deleted_count += 1
+                    if args.verbose:
+                        print(f"Deleted: {filename}")
+
+            if deleted_count > 0:
+                action = "Would delete" if dry_run else "Deleted"
+                print(f"{action} {deleted_count} file(s) from delete_files list\n")
+
     # Preview mode
     if args.preview:
         if input_path.is_file():

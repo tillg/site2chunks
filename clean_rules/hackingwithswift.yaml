@@ -1,5 +1,13 @@
 site: hackingwithswift.com
 
+# Files to delete entirely (no content value)
+# These files will be deleted from the output directory before cleaning starts
+delete_files:
+  - hackingwithswift.com_unwrap.md
+  - hackingwithswift.com_update-policy.md
+  - hackingwithswift.com_videos.md
+  - hackingwithswift.com.md
+
 rules:
   # Remove navigation menu (appears at top of every page)
   - type: section_boundary
