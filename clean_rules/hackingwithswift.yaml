@@ -159,6 +159,12 @@ rules:
     pattern: '### Reply to this topic…\n\nYou need to \[create an account or log in\]\(/login\?return=[^\)]+\) to reply\.\n\nAll interactions here are governed by our \[code of conduct\]\(/conduct\)\.'
     flags: [MULTILINE]
 
+  # Remove "100 Days of Swift/SwiftUI" promotional blocks
+  - type: regex
+    description: "100 Days of Swift/SwiftUI promotional blocks"
+    pattern: '## 100 Days of Swift(?:UI)?\n\n---\n\nThe 100 Days of Swift(?:UI)? is a free collection of videos, tutorials, tests, and more to help you learn Swift(?:UI)? faster\. \[Click here to learn more\]\(/100(?:/swiftui)?\), or watch the video below\.'
+    flags: [MULTILINE]
+
   # Remove HWS+ "SELECT A CATEGORY" navigation section
   # Uses regex to match the entire category list from header to end, handling both bolded and non-bolded last items
   - type: regex
