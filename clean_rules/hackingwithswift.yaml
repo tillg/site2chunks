@@ -34,6 +34,12 @@ rules:
     end_marker: "Link copied to your pasteboard."
     inclusive: true
 
+  # Alternative footer starting with social media links (empty H4 headers)
+  - type: regex
+    description: "Footer with social media links and legal text"
+    pattern: '\[####\s*\n\nTwitter\]\(https://twitter\.com/twostraws\).*?Hacking with Swift is ©\d{4} \[Hudson Heavy Industries\]\(https://www\.hudson\.uk\)\.'
+    flags: [MULTILINE, DOTALL]
+
   # Remove "Need help?" CTAs
   - type: line_pattern
     description: "Need help tweet prompts"
