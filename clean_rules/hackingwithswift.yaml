@@ -1,0 +1,174 @@
+site: hackingwithswift.com
+
+rules:
+  # Remove navigation menu (appears at top of every page)
+  - type: section_boundary
+    description: "Navigation menu"
+    start_marker: "- [Forums](/forums)"
+    end_marker: "- [SUBSCRIBE](/plus)"
+    inclusive: true
+
+  # Remove promotional book banner (appears after nav on some pages)
+  - type: exact_match
+    description: "Book promotional banner"
+    pattern: "[NEW BOOK: **Code got you started. This gets you *paid*.** >>](/store/everything-but-the-code)"
+    max_remove: -1
+
+  # Remove sponsored content blocks
+  - type: regex
+    description: "Sponsored content blocks"
+    pattern: '\*\*SPONSORED\*\*[^\n]*\n\n\[[^\]]+\]\([^\)]+\)\n'
+    flags: [MULTILINE]
+
+  # Remove footer sections starting with store link
+  - type: section_boundary
+    description: "Footer content and social links"
+    start_marker: "[Click here to visit the Hacking with Swift store >>](/store)"
+    end_marker: "Link copied to your pasteboard."
+    inclusive: true
+
+  # Alternative footer pattern (some pages have different footer)
+  - type: section_boundary
+    description: "Alternative footer starting with Back to..."
+    start_marker: "[Back to 100 Days of Swift](/100)"
+    end_marker: "Link copied to your pasteboard."
+    inclusive: true
+
+  # Remove "Need help?" CTAs
+  - type: line_pattern
+    description: "Need help tweet prompts"
+    pattern: '^Need help\? Tweet me \[@twostraws\]'
+
+  # Remove login status messages
+  - type: exact_match
+    description: "Login status messages"
+    pattern: "You are not logged in"
+    max_remove: -1
+
+  - type: exact_match
+    description: "Login prompts"
+    pattern: "[Log in or create account](/login)"
+    max_remove: -1
+
+  - type: exact_match
+    description: "Pasteboard messages"
+    pattern: "Link copied to your pasteboard."
+    max_remove: -1
+
+  # Remove empty header markers (social media section markers)
+  - type: line_pattern
+    description: "Empty header markers"
+    pattern: '^####\s*$'
+
+  # Note: We don't remove horizontal rules (---) as they are semantic elements
+  # and could be part of actual content. They're also used for frontmatter delimiters.
+
+  # Remove "Back to X" navigation links that appear mid-content
+  - type: regex
+    description: "Back navigation links"
+    pattern: '\[Back to [^\]]+\]\([^\)]+\)'
+    flags: [MULTILINE]
+
+  # Remove RSS feed links
+  - type: line_pattern
+    description: "RSS feed links"
+    pattern: '\[Subscribe to our RSS feed\]'
+
+  # Remove newsletter subscription headings
+  - type: regex
+    description: "Newsletter subscription sections"
+    pattern: '### Subscribe to my monthly newsletter\n\nGet a free book delivered.*?\n\nSubscribe'
+    flags: [MULTILINE, DOTALL]
+
+  # Remove Slack join sections
+  - type: regex
+    description: "Slack community sections"
+    pattern: '### Join us on Slack!.*?\[JOIN HERE\]\(/slack\)'
+    flags: [MULTILINE, DOTALL]
+
+  # Remove "Get the app" promotional sections
+  - type: regex
+    description: "App download promotional sections"
+    pattern: '### Get the app!.*?with Unwrap:.*?completely free with no in-app purchases!'
+    flags: [MULTILINE, DOTALL]
+
+  # Clean up "About Me" sections in footer
+  - type: regex
+    description: "About Me footer sections"
+    pattern: '## About Me\n\nMy name is Paul Hudson.*?Want to know more about me\? Click here.*?\]\.'
+    flags: [MULTILINE, DOTALL]
+
+  # Remove article category tags (e.g., "###### [NEWS](/articles/category/news)")
+  - type: regex
+    description: "Article category tags"
+    pattern: '^######\s+\[[A-Z\s]+\]\(/articles/category/[^\)]+\)'
+    flags: [MULTILINE]
+
+  # Remove "Read Full Article" links
+  - type: line_pattern
+    description: "Read full article links"
+    pattern: '^\[Read Full Article\]'
+
+  # Remove "Continue reading" links
+  - type: line_pattern
+    description: "Continue reading links"
+    pattern: '^\[Continue reading'
+
+  # Remove "Read more" links
+  - type: line_pattern
+    description: "Read more links"
+    pattern: '^\[Read more'
+
+  # Remove "Older Posts" navigation
+  - type: line_pattern
+    description: "Older posts navigation"
+    pattern: '^\[Older Posts\]'
+
+  # Remove standalone "Subscribe" text
+  - type: line_pattern
+    description: "Standalone Subscribe text"
+    pattern: '^Subscribe$'
+
+  # Remove feedback form sections
+  - type: regex
+    description: "Feedback/improvement form sections"
+    pattern: 'How can this day be improved\?\n\nGreat job on finishing another day!.*?Thank you!'
+    flags: [MULTILINE, DOTALL]
+
+  # Remove "share your progress" social media prompts
+  - type: regex
+    description: "Share progress Twitter prompts"
+    pattern: '## Now share your progress…\n\nIf you use Twitter.*?\[Tweet\]\(https://twitter.com/share\)'
+    flags: [MULTILINE, DOTALL]
+
+  # Remove page rating widgets
+  - type: regex
+    description: "Page usefulness rating widgets"
+    pattern: 'Was this page useful\? Let us know!\n\n1\n2\n3\n4\n5\n\nAverage rating:.*?\n\nThank you!'
+    flags: [MULTILINE, DOTALL]
+
+  # Remove "BUY OUR BOOKS" promotional headers
+  - type: exact_match
+    description: "Buy our books promotional text"
+    pattern: "**BUY OUR BOOKS**"
+    max_remove: -1
+
+  # Remove HWS+ "SELECT A CATEGORY" navigation section
+  # Uses regex to match the entire category list from header to end, handling both bolded and non-bolded last items
+  - type: regex
+    description: "HWS+ SELECT A CATEGORY section"
+    pattern: '^###### SELECT A CATEGORY\n\n(?:- \[(?:\*\*)?.+?(?:\*\*)?\]\(/plus/[^\)]+\)\n)+\n'
+    flags: [MULTILINE]
+
+  # Remove HWS+ "COURSES BY CATEGORY" navigation section
+  - type: regex
+    description: "HWS+ COURSES BY CATEGORY section"
+    pattern: '^###### COURSES BY CATEGORY\n\n(?:- \[(?:\*\*)?.+?(?:\*\*)?\]\(/plus/[^\)]+\)\n)+\n'
+    flags: [MULTILINE]
+
+  # Remove HWS+ membership promotional sections
+  - type: section_boundary
+    description: "HWS+ membership features promotion"
+    start_marker: "## Hacking with Swift+ membership includes…"
+    end_marker: "#### A free ticket to Unwrap Live every year"
+    inclusive: true

@@ -15,6 +15,8 @@ build/
 
 # Scraped content
 scrapes/
+cleaned/
+cleaned_scrapes/
 output/
 test_output/
 test_clean_output/
@@ -32,6 +34,7 @@ urls_scraped.txt
 test_*.txt
 test_*.md
 *.test.md
+cleaned_test/
 
 # IDE and editors
 .vscode/

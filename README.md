@@ -14,6 +14,19 @@ Install required dependencies:
 pip install -r requirements.txt
 ```
 
+## Pipeline
+
+The pipeline comprises multiple steps:
+
+1. **Scrape** the raw data from the website and save it as MD files ✅
+2. **Clean** MD files ✅
+   * Remove navigation menus, footers, ads, and other boilerplate
+   * Site-specific rules defined in YAML configuration
+3. **Summarize** Add summaries to the MD files (TODO)
+4. **Chunk** the MD files to small MD files ✅
+   * Offer different chunker strategies
+5. **Merge** the chunks to one big JSON so it can be added to an App bundle ✅
+
 ## Usage
 
 ### 1. Scraping Websites
@@ -21,32 +34,32 @@ pip install -r requirements.txt
 Scrape websites and convert them to markdown with frontmatter:
 
 ```bash
-# Using config file (recommended): reads settings from scrape_config.yaml
-python3 scraper.py
+# Using config file (recommended): reads settings from scrape.yaml
+python3 scrape.py
 
 # Basic scraping: scrape all URLs from urls.txt
-python3 scraper.py urls.txt
+python3 scrape.py urls.txt
 
 # Recursive crawling: discover and scrape linked pages from the same domain
-python3 scraper.py urls.txt --recursive
+python3 scrape.py urls.txt --recursive
 
 # Recursive crawling with hop limit (max 2 hops from seed URLs)
-python3 scraper.py urls.txt --recursive --max-hops 2
+python3 scrape.py urls.txt --recursive --max-hops 2
 
 # Skip specific URL patterns (supports wildcards)
-python3 scraper.py urls.txt --recursive --skip-pattern "*/users/*" --skip-pattern "*/login"
+python3 scrape.py urls.txt --recursive --skip-pattern "*/users/*" --skip-pattern "*/login"
 
 # Start from scratch (ignore previous scraping state)
-python3 scraper.py urls.txt --recursive --ignore-scraping-state
+python3 scrape.py urls.txt --recursive --ignore-scraping-state
 
 # Scrape a single URL
-python3 scraper.py "https://example.com/page" -o scrapes/custom_name.md
+python3 scrape.py "https://example.com/page" -o scrapes/custom_name.md
 
 # Scrape URLs from a file to a custom directory
-python3 scraper.py urls.txt -o my_scrapes/
+python3 scrape.py urls.txt -o my_scrapes/
 ```
 
-#### Configuration File (scrape_config.yaml)
+#### Configuration File (scrape.yaml)
 
 The scraper can be configured using a YAML file for easier management of scraping rules:
 
@@ -79,9 +92,9 @@ state_files:
 ignore_scraping_state: false
 ```
 
-When `scrape_config.yaml` exists, you can simply run:
+When `scrape.yaml` exists, you can simply run:
 ```bash
-python3 scraper.py
+python3 scrape.py
 ```
 
 Command-line arguments will override config file settings.
@@ -105,19 +118,132 @@ Each scraped file includes frontmatter with:
 - `scrape_date`: When the content was scraped
 - `title`: Page title
 
-### 2. Chunking Markdown Files
+### 2. Cleaning Scraped Content
+
+Remove non-valuable content like navigation menus, footers, sponsored content, and other boilerplate:
+
+```bash
+# Using config file (recommended): reads settings from clean.yaml
+python3 clean.py
+
+# Clean all files in scrapes/ directory using auto-detected config
+python3 clean.py scrapes/ cleaned_scrapes/ --auto-detect
+
+# Use specific configuration file
+python3 clean.py scrapes/ cleaned_scrapes/ --config clean_rules/hackingwithswift.yaml
+
+# Preview changes without modifying files (dry-run)
+python3 clean.py scrapes/ --dry-run --config clean_rules/hackingwithswift.yaml
+
+# Show detailed diff preview for first file
+python3 clean.py scrapes/file.md --preview --config clean_rules/hackingwithswift.yaml
+
+# Clean a single file
+python3 clean.py scrapes/file.md cleaned_scrapes/file.md --config clean_rules/hackingwithswift.yaml
+```
+
+#### Configuration File (clean.yaml)
+
+The cleaner can be configured using a YAML file for easier management:
+
+```yaml
+# Input directory containing scraped markdown files
+input_dir: scrapes
+
+# Output directory for cleaned markdown files
+output_dir: cleaned
+
+# Rules directory containing site-specific cleaning configurations
+rules_dir: clean_rules
+
+# Auto-detect site configuration from file frontmatter
+auto_detect: true
+
+# File pattern to match (glob pattern)
+pattern: "*.md"
+
+# Enable dry-run mode (preview changes without modifying files)
+dry_run: false
+```
+
+When `clean.yaml` exists, you can simply run:
+```bash
+python3 clean.py
+```
+
+Command-line arguments will override config file settings.
+
+#### Cleaning Rules Configuration
+
+Create site-specific cleaning rules in YAML format in the `clean_rules/` directory:
+
+```yaml
+site: example.com
+
+rules:
+  # Remove exact text matches
+  - type: exact_match
+    description: "Login prompts"
+    pattern: "Please log in to continue"
+    max_remove: -1  # -1 means remove all occurrences
+
+  # Remove content matching regex patterns
+  - type: regex
+    description: "Sponsored content blocks"
+    pattern: '\*\*SPONSORED\*\*.*?\n\n\[.*?\]\(.*?\)'
+    flags: [MULTILINE, DOTALL]
+
+  # Remove content between markers
+  - type: section_boundary
+    description: "Footer content"
+    start_marker: "Follow us on social media"
+    end_marker: "© 2025 Company Name"
+    inclusive: true
+
+  # Remove lines matching a pattern
+  - type: line_pattern
+    description: "Newsletter prompts"
+    pattern: '^Subscribe to our newsletter'
+
+  # Handle repeated elements
+  - type: repeating_pattern
+    description: "Store links"
+    pattern: '[Visit our store](/store)'
+    keep_first: false  # Remove all occurrences
+```
+
+**Available Rule Types:**
+- `exact_match`: Remove exact text strings
+- `regex`: Remove content matching regular expressions
+- `section_boundary`: Remove content between start/end markers
+- `line_pattern`: Remove entire lines matching a pattern
+- `repeating_pattern`: Handle duplicate content (keep first/last/none)
+
+**Features:**
+- Preserves YAML frontmatter
+- Site-specific configurations
+- Auto-detection from file domain
+- Dry-run mode for safe previewing
+- Detailed statistics and warnings
+- Whitespace normalization
+
+### 3. Summarizing pages
+
+TODO
+
+### 4. Chunking Markdown Files
 
 Split markdown files into smaller chunks for AI/ML processing while preserving frontmatter:
 
 ```bash
 # Chunk all files in scrapes/ directory
-python3 chunkify.py scrapes/ --out chunks
+python3 chunk.py scrapes/ --out chunks
 
 # Chunk a single file
-python3 chunkify.py scrapes/file.md --out chunks
+python3 chunk.py scrapes/file.md --out chunks
 
 # Custom chunk size and overlap
-python3 chunkify.py scrapes/ --out chunks --chunk-size 1500 --chunk-overlap 200
+python3 chunk.py scrapes/ --out chunks --chunk-size 1500 --chunk-overlap 200
 ```
 
 Each chunk preserves the original frontmatter and adds:
@@ -127,19 +253,19 @@ Each chunk preserves the original frontmatter and adds:
 - `section_path`: Hierarchical breadcrumb of headers
 - `char_count` and `word_count`: Size metrics
 
-### 3. Merging Chunks to JSON
+### 5. Merging Chunks to JSON
 
 Combine all chunks into a single JSON file for bulk processing:
 
 ```bash
 # Merge all chunks into a JSON file
-python3 merge_chunks.py chunks -o merged_chunks.json
+python3 merge.py chunks -o merged_chunks.json
 
 # With pretty formatting for readability
-python3 merge_chunks.py chunks -o merged_chunks.json --pretty
+python3 merge.py chunks -o merged_chunks.json --pretty
 
 # From a custom directory
-python3 merge_chunks.py my_chunks/ -o output.json
+python3 merge.py my_chunks/ -o output.json
 ```
 
 Each chunk in the JSON includes:
@@ -153,7 +279,7 @@ Each chunk in the JSON includes:
 
 ```bash
 # 1. Configure your scraping (optional but recommended)
-#    Edit scrape_config.yaml to set:
+#    Edit scrape.yaml to set:
 #    - urls_file: path to your URLs file
 #    - max_hops: how far to crawl from seed URLs
 #    - skip_patterns: URL patterns to avoid
@@ -162,15 +288,18 @@ Each chunk in the JSON includes:
 echo "https://example.com/article" > urls.txt
 
 # 3. Scrape the URLs
-python3 scraper.py  # Uses scrape_config.yaml if present
+python3 scrape.py  # Uses scrape.yaml if present
 # OR
 ./crawl.sh  # Uses default recursive settings
 
-# 4. Chunk the scraped content
-python3 chunkify.py scrapes/ --out chunks
+# 4. Clean the scraped content (removes boilerplate)
+python3 clean.py  # Uses clean.yaml if present
 
-# 5. Merge chunks to JSON (optional)
-python3 merge_chunks.py chunks -o merged.json --pretty
+# 5. Chunk the cleaned content
+python3 chunk.py cleaned/ --out chunks
+
+# 6. Merge chunks to JSON (optional)
+python3 merge.py chunks -o merged.json --pretty
 ```
 
 **Note**: With `--recursive`, the scraper discovers and scrapes linked pages automatically. Use `max_hops` to limit crawling depth and `skip_patterns` to exclude unwanted URLs.
@@ -179,20 +308,32 @@ python3 merge_chunks.py chunks -o merged.json --pretty
 
 ```
 .
-├── scrape_config.yaml    # Configuration file for scraping rules
-├── urls.txt              # List of URLs to scrape (seed URLs)
-├── urls_to_scrape.txt    # Queue of URLs to scrape (recursive mode, with hop counts)
-├── urls_scraped.txt      # Already scraped URLs (recursive mode)
-├── scraper.py            # Web scraping script
-├── chunkify.py           # Markdown chunking script
-├── merge_chunks.py       # Merge chunks to JSON
-├── crawl.sh              # Convenience script for scraping
-├── scrapes/              # Scraped markdown files (default output)
-├── chunks/               # Chunked markdown files
-└── merged.json           # Combined chunks in JSON format
+├── scrape.yaml             # Scraping configuration
+├── clean.yaml              # Cleaning configuration
+├── urls.txt                # List of URLs to scrape (seed URLs)
+├── urls_to_scrape.txt      # Queue of URLs to scrape (recursive mode)
+├── urls_scraped.txt        # Already scraped URLs (recursive mode)
+├── scrape.py               # Web scraping script
+├── clean.py                # Content cleaning script
+├── chunk.py                # Markdown chunking script
+├── merge.py                # Merge chunks to JSON
+├── crawl.sh                # Convenience script for scraping
+├── clean_rules/            # Site-specific cleaning configurations
+│   └── hackingwithswift.yaml
+├── content_cleaner/        # Cleaning engine module
+│   ├── __init__.py
+│   ├── rules.py            # Cleaning rule implementations
+│   ├── config.py           # Configuration loader
+│   └── cleaner.py          # Main cleaning engine
+├── scrapes/                # Scraped markdown files (raw)
+├── cleaned/                # Cleaned markdown files (default)
+├── chunks/                 # Chunked markdown files
+└── merged.json             # Combined chunks in JSON format
 ```
 
-**Configuration File**: `scrape_config.yaml` allows you to configure scraping behavior including hop limits, skip patterns, and output directories.
+**Configuration Files**:
+- `scrape.yaml` - Configure scraping (hop limits, skip patterns, output directories)
+- `clean.yaml` - Configure cleaning (input/output dirs, auto-detection, rules)
 
 **State Files**: When using `--recursive`, the scraper maintains state in `urls_to_scrape.txt` (with hop counts stored as JSON) and `urls_scraped.txt`. Delete these files (or use `--ignore-scraping-state`) to start a fresh crawl.
 

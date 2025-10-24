@@ -1,0 +1,25 @@
+# Content cleaning configuration
+# Removes non-valuable content like navigation, footers, ads, etc.
+
+# Input directory containing scraped markdown files
+input_dir: scrapes
+
+# Output directory for cleaned markdown files
+output_dir: cleaned
+
+# Rules directory containing site-specific cleaning configurations
+rules_dir: clean_rules
+
+# Auto-detect site configuration from file frontmatter
+# When true, extracts domain from original_url and finds matching config
+auto_detect: true
+
+# Specific configuration file to use (overrides auto_detect)
+# Example: clean_rules/hackingwithswift.yaml
+config_file: null
+
+# File pattern to match (glob pattern)
+pattern: "*.md"
+
+# Enable dry-run mode (preview changes without modifying files)
+dry_run: false

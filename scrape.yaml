@@ -1,5 +1,5 @@
 # Web Scraping Configuration
-# This file controls the behavior of scraper.py
+# This file controls the behavior of scrape.py
 
 # Input file containing seed URLs (one per line)
 urls_file: urls.txt
