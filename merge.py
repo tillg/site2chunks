@@ -159,8 +159,8 @@ def main():
     )
     parser.add_argument(
         '-o', '--output',
-        default='merged_chunks.json',
-        help='Output JSON file (default: merged_chunks.json)'
+        default='chunks.json',
+        help='Output JSON file (default: chunks.json)'
     )
     parser.add_argument(
         '--pretty',
