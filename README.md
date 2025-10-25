@@ -49,8 +49,8 @@ The pipeline comprises multiple steps:
 6. **GenerateQA** Generate test questions for retrieval evaluation ✅
    * Extract existing interview questions from content
    * Generate synthetic questions using LLM
-   * Interactive review and curation interface
-   * Export to standard test formats (JSON, CSV, TREC)
+   * Markdown-based storage for easy review and version control
+   * Merge to JSON for Swift/RAG integration
 
 ## Usage
 
@@ -477,47 +477,39 @@ python3 generate_qa.py
 
 Command-line arguments will override config file settings.
 
-**Review and curate questions:**
+#### Review and Curation
+
+QA pairs are stored as individual markdown files in `qa/`, making them easy to review, edit, and version control:
 
 ```bash
-# Show statistics
-python3 review_qa.py questions.json --stats
+# Review markdown files in your editor
+ls qa/*.md
 
-# Auto-approve extracted interview questions (high confidence)
-python3 review_qa.py questions.json --auto-approve-extracted -o curated.json
+# Edit individual questions
+nano qa/hackingwithswift.com_interview-questions_001.md
 
-# Interactive review (approve/reject/edit questions)
-python3 review_qa.py questions.json -o curated.json
+# Delete low-quality questions
+rm qa/some_bad_question_001.md
+
+# Use version control to track changes
+git diff qa/
+git add qa/
+git commit -m "Curated QA pairs: removed 5 low-quality questions"
 ```
 
-**Export to standard test formats:**
-
-```bash
-# Export approved questions to JSON
-python3 export_qa.py curated.json -o test_set.json --pretty
-
-# Export to multiple formats
-python3 export_qa.py curated.json -o test_set -f all
-# Creates: test_set.json, test_set.jsonl, test_set.csv, test_set.trec, test_set.md
-
-# Export to TREC qrels format for retrieval evaluation
-python3 export_qa.py curated.json -o qrels.trec -f trec
-```
-
-**What you get:**
-
-Each test case includes:
-* `question` - The test question
-* `expected_chunk_id` - Ground truth chunk that should be retrieved
-* `chunk_path` - Path to the expected chunk file
-* `source_url` - Original page URL
-* `source_type` - `interview_question` (extracted) or `synthetic` (generated)
+**Benefits of markdown-based QA:**
+* **Version control friendly** - Track changes with git diff
+* **Human readable** - Easy to review and edit in any text editor
+* **Searchable** - Use grep/find to locate specific questions
+* **Organized** - Grouped by chunk with sequential numbering
+* **Metadata preserved** - All info in YAML frontmatter
 
 **Use cases:**
 * Evaluate retrieval/search quality (Recall@k, MRR)
 * Test semantic search systems
 * Benchmark different embedding models
 * A/B test chunking strategies
+* Integration testing for RAG applications
 
 #### Merge QA to JSON (for Swift/RAG systems)
 
@@ -621,8 +613,8 @@ python3 merge_qa.py --pretty  # Creates qa.json
 ├── merge.py                # Merge chunks to JSON
 ├── merge_qa.py             # Merge QA pairs to JSON (for Swift/RAG)
 ├── generate_qa.py          # Generate QA test questions
-├── review_qa.py            # Review and curate questions
-├── export_qa.py            # Export to test formats
+├── review_qa.py            # (Legacy) Review questions in JSON format
+├── export_qa.py            # (Legacy) Export JSON to test formats
 ├── crawl.sh                # Convenience script for scraping
 ├── clean_rules/            # Site-specific cleaning configurations
 │   └── hackingwithswift.yaml
