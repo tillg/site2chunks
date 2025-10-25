@@ -1,0 +1,17 @@
+FILES REQUIRING MANUAL INSPECTION
+====================================================================================================
+
+Priority files for manual review: 12
+
+hackingwithswift.com_review_sixty_protocols.md
+hackingwithswift.com_review_sixty_dictionary-default-values.md
+hackingwithswift.com_review_sixty_mutability.md
+hackingwithswift.com_review_sixty_copying-objects.md
+hackingwithswift.com_review_ios-swiftui_bookworm.md
+hackingwithswift.com_review_ios-swiftui_wesplit.md
+hackingwithswift.com_review_sixty_string-interpolation.md
+hackingwithswift.com_review_ios-swiftui_instafilter.md
+hackingwithswift.com_review_100_final-exam.md
+hackingwithswift.com_review_sixty_arrays-vs-sets-vs-tuples.md
+hackingwithswift.com_example-code_accessibility.md
+hackingwithswift.com_guide_ios-swiftui_6_1_what-you-learned.md

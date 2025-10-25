@@ -258,6 +258,112 @@ rules:
     pattern: '^\[Download all Swift [\d.]+ changes as a playground\]\(/files/playgrounds/swift/playground[^\)]+\)\n \[Link to Swift [\d.]+ changes\]\(/swift/[\d.]+\)\n\n\[Browse changes in all Swift versions\]\(/swift\)$'
     flags: [MULTILINE]
 
+  # ============================================================================
+  # PHASE 1: HIGH-PRIORITY PATTERNS (Navigation, Author Info, Promotional)
+  # ============================================================================
+
+  # Remove author bylines with social media links
+  - type: regex
+    description: "Author byline with social media"
+    pattern: '^\[Paul Hudson\]\(/about\).*?@twostraws.*?$'
+    flags: [MULTILINE]
+
+  # Remove previous/next navigation tables
+  - type: regex
+    description: "Previous/next navigation tables"
+    pattern: '^\|  \|  \|  \|\n\| --- \| --- \| --- \|\n\| \[<.*?\] \|  \| \[.*?>\] \|$'
+    flags: [MULTILINE]
+
+  # Remove table of contents navigation rows
+  - type: regex
+    description: "Table of contents navigation row"
+    pattern: '^\| \[Table of Contents\].*?\| \| \|$'
+    flags: [MULTILINE]
+
+  # Remove empty table structures
+  - type: regex
+    description: "Empty table rows"
+    pattern: '^\|  \|  \|  \|\n\| --- \| --- \| --- \|$'
+    flags: [MULTILINE]
+
+  # Remove HWS+ subscription promotional text
+  - type: regex
+    description: "Subscription promotional text"
+    pattern: 'If you don.t already subscribe, you can start a free trial.*?\.?$'
+    flags: [MULTILINE, IGNORECASE]
+
+  # ============================================================================
+  # PHASE 2: INTERVIEW QUESTIONS & REVIEW SECTIONS
+  # ============================================================================
+
+  # Remove interview question "Important notes" section
+  - type: section_boundary
+    description: "Interview question boilerplate notes"
+    start_marker: "## Important notes"
+    end_marker: "## Related questions"
+    inclusive: true
+
+  # Remove interview question "Related questions" section (when it appears at end)
+  - type: section_boundary
+    description: "Related questions link list"
+    start_marker: "## Related questions"
+    end_marker: null
+    inclusive: true
+
+  # Remove "Review what you learned" boilerplate sections
+  - type: section_boundary
+    description: "Review section boilerplate explanations"
+    start_marker: "## Review what you learned"
+    end_marker: "## Challenge"
+    inclusive: false
+
+  # Remove "Watch me answer this question" video CTA links
+  - type: line_pattern
+    description: "Video CTA links"
+    pattern: '^\[Watch me answer this question.*?\]\(/plus/.*?\)$'
+
+  # ============================================================================
+  # PHASE 3: MEDIUM-PRIORITY PATTERNS
+  # ============================================================================
+
+  # Remove "Continue Reading >>" truncation teasers
+  - type: regex
+    description: "Continue reading teasers"
+    pattern: '\.\.\.\s*\[Continue Reading >>?\]\(.*?\)$'
+    flags: [MULTILINE]
+
+  # Remove "Other changes in Swift X.X" lists (if not already covered)
+  - type: section_boundary
+    description: "Other changes in Swift version lists"
+    start_marker: "### Other changes in Swift"
+    end_marker: null
+    inclusive: true
+
+  # Remove HWS+ membership badges from forum posts
+  - type: regex
+    description: "HWS+ membership badges"
+    pattern: '\[HWS\+\]\(/plus ".*?"\)'
+    flags: [MULTILINE]
+
+  # Remove relative timestamps from forum posts
+  - type: regex
+    description: "Relative timestamps from forum posts"
+    pattern: '\s+\d+[dhm]\s*$'
+    flags: [MULTILINE]
+
+  # ============================================================================
+  # PHASE 4: LOW-PRIORITY CLEANUP
+  # ============================================================================
+
+  # Remove empty bullet points
+  - type: line_pattern
+    description: "Empty bullet points"
+    pattern: '^-\s*$'
+
+  # ============================================================================
+  # FINAL CLEANUP PASSES (Run at end)
+  # ============================================================================
+
   # Clean up empty H2 headings left behind after content removal (run at end)
   - type: regex
     description: "Empty H2 headings cleanup (final pass)"
