@@ -258,27 +258,48 @@ Return ONLY a JSON array of strings, nothing else. Example:
 
         # Parse response
         text = response.content[0].text.strip()
+
         # Remove markdown code blocks if present
         if text.startswith('```'):
-            text = text.split('```')[1]
-            if text.startswith('json'):
-                text = text[4:]
-            text = text.strip()
+            parts = text.split('```')
+            if len(parts) >= 2:
+                text = parts[1]
+                if text.startswith('json'):
+                    text = text[4:]
+                text = text.strip()
 
-        questions = json.loads(text)
+        # Try to extract JSON array if there's extra text
+        # Look for [...] pattern
+        json_match = re.search(r'\[.*\]', text, re.DOTALL)
+        if json_match:
+            text = json_match.group(0)
+
+        try:
+            questions = json.loads(text)
+        except json.JSONDecodeError as je:
+            # Show what we got for debugging
+            print(f"JSON parse error: {je}")
+            print(f"Response text (first 200 chars): {text[:200]}")
+            return []
+
+        # Validate it's a list
+        if not isinstance(questions, list):
+            print(f"Expected JSON array, got {type(questions).__name__}")
+            return []
 
         # Create question-chunk pairs
         results = []
         for q in questions:
-            results.append({
-                'question': q,
-                'chunk_id': chunk_meta.get('chunk_id'),
-                'chunk_path': str(chunk_path),
-                'source_url': chunk_meta.get('original_url'),
-                'section_path': chunk_meta.get('section_path', []),
-                'confidence': 'auto-generated',
-                'reviewed': False
-            })
+            if isinstance(q, str):
+                results.append({
+                    'question': q,
+                    'chunk_id': chunk_meta.get('chunk_id'),
+                    'chunk_path': str(chunk_path),
+                    'source_url': chunk_meta.get('original_url'),
+                    'section_path': chunk_meta.get('section_path', []),
+                    'confidence': 'auto-generated',
+                    'reviewed': False
+                })
         return results
 
     except Exception as e:
@@ -381,27 +402,48 @@ Return ONLY a JSON array of strings, nothing else. Example:
 
         # Parse response
         text = response.choices[0].message.content.strip()
+
         # Remove markdown code blocks if present
         if text.startswith('```'):
-            text = text.split('```')[1]
-            if text.startswith('json'):
-                text = text[4:]
-            text = text.strip()
+            parts = text.split('```')
+            if len(parts) >= 2:
+                text = parts[1]
+                if text.startswith('json'):
+                    text = text[4:]
+                text = text.strip()
 
-        questions = json.loads(text)
+        # Try to extract JSON array if there's extra text
+        # Look for [...] pattern
+        json_match = re.search(r'\[.*\]', text, re.DOTALL)
+        if json_match:
+            text = json_match.group(0)
+
+        try:
+            questions = json.loads(text)
+        except json.JSONDecodeError as je:
+            # Show what we got for debugging
+            print(f"JSON parse error: {je}")
+            print(f"Response text (first 200 chars): {text[:200]}")
+            return []
+
+        # Validate it's a list
+        if not isinstance(questions, list):
+            print(f"Expected JSON array, got {type(questions).__name__}")
+            return []
 
         # Create question-chunk pairs
         results = []
         for q in questions:
-            results.append({
-                'question': q,
-                'chunk_id': chunk_meta.get('chunk_id'),
-                'chunk_path': str(chunk_path),
-                'source_url': chunk_meta.get('original_url'),
-                'section_path': chunk_meta.get('section_path', []),
-                'confidence': 'auto-generated',
-                'reviewed': False
-            })
+            if isinstance(q, str):
+                results.append({
+                    'question': q,
+                    'chunk_id': chunk_meta.get('chunk_id'),
+                    'chunk_path': str(chunk_path),
+                    'source_url': chunk_meta.get('original_url'),
+                    'section_path': chunk_meta.get('section_path', []),
+                    'confidence': 'auto-generated',
+                    'reviewed': False
+                })
         return results
 
     except Exception as e:
