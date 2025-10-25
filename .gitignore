@@ -26,6 +26,13 @@ merged_chunks.json
 merged.json
 *.merged.json
 
+# QA files
+qa/
+*.qa.json
+questions.json
+curated.json
+test_set.json
+
 # Scraper state files
 urls_to_scrape.txt
 urls_scraped.txt

@@ -1,0 +1,57 @@
+# GenerateQA Configuration
+# Configure question generation from chunks
+
+# Input directory containing chunks
+chunks_dir: chunks
+
+# Output directory for QA markdown files
+output_dir: qa
+
+# Legacy: output_file for JSON format (deprecated, use output_dir instead)
+# output_file: questions.json
+
+# Number of chunks to sample for synthetic generation (0 = extract only)
+num_chunks: 50
+
+# Questions to generate per chunk
+questions_per_chunk: 3
+
+# File pattern to match
+pattern: "*.md"
+
+# Random seed for reproducible sampling
+random_seed: 42
+
+# Extract existing interview questions from content
+extract_interview_questions: true
+
+# LLM provider configuration for synthetic question generation
+# Options: anthropic, openai, local
+llm_provider: local
+
+# Model-specific settings
+models:
+  # Anthropic models (requires ANTHROPIC_API_KEY)
+  anthropic:
+    model: claude-3-5-haiku-20241022
+    # Alternative: claude-3-5-sonnet-20241022, claude-3-opus-20240229
+    max_tokens: 1000
+    temperature: 0.7
+
+  # OpenAI models (requires OPENAI_API_KEY)
+  openai:
+    model: gpt-4o-mini
+    # Alternative: gpt-4o, gpt-4-turbo, gpt-3.5-turbo
+    max_tokens: 1000
+    temperature: 0.7
+
+  # Local models via OpenAI-compatible API (e.g., LM Studio, Ollama)
+  local:
+    model: apple-on-device
+    # Alternative: qwen2.5, mistral, phi-3, etc.
+    base_url: http://127.0.0.1:11535/v1
+    # For LM Studio: http://localhost:1234/v1
+    # For Ollama: http://localhost:11434/v1
+    api_key: not-needed  # Local models typically don't need a key
+    max_tokens: 1000
+    temperature: 0.7
