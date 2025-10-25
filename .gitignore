@@ -22,8 +22,7 @@ test_output/
 test_clean_output/
 output_backup/
 chunks/
-chunks.json
-merged_chunks.json
+*chunks*.json
 merged.json
 *.merged.json
 
