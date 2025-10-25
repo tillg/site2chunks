@@ -479,37 +479,7 @@ Command-line arguments will override config file settings.
 
 #### Review and Curation
 
-QA pairs are stored as individual markdown files in `qa/`, making them easy to review, edit, and version control:
-
-```bash
-# Review markdown files in your editor
-ls qa/*.md
-
-# Edit individual questions
-nano qa/hackingwithswift.com_interview-questions_001.md
-
-# Delete low-quality questions
-rm qa/some_bad_question_001.md
-
-# Use version control to track changes
-git diff qa/
-git add qa/
-git commit -m "Curated QA pairs: removed 5 low-quality questions"
-```
-
-**Benefits of markdown-based QA:**
-* **Version control friendly** - Track changes with git diff
-* **Human readable** - Easy to review and edit in any text editor
-* **Searchable** - Use grep/find to locate specific questions
-* **Organized** - Grouped by chunk with sequential numbering
-* **Metadata preserved** - All info in YAML frontmatter
-
-**Use cases:**
-* Evaluate retrieval/search quality (Recall@k, MRR)
-* Test semantic search systems
-* Benchmark different embedding models
-* A/B test chunking strategies
-* Integration testing for RAG applications
+QA pairs are stored as individual markdown files in `qa/`, making them easy to review and edit.
 
 #### Merge QA to JSON (for Swift/RAG systems)
 
