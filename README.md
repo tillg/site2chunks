@@ -243,15 +243,47 @@ TODO
 Split markdown files into smaller chunks for AI/ML processing while preserving frontmatter:
 
 ```bash
-# Chunk all files in scrapes/ directory
-python3 chunk.py scrapes/ --out chunks
+# Using config file (recommended): reads settings from chunk.yaml
+python3 chunk.py
+
+# Chunk all files in a directory
+python3 chunk.py cleaned/ --out chunks
 
 # Chunk a single file
-python3 chunk.py scrapes/file.md --out chunks
+python3 chunk.py cleaned/file.md --out chunks
 
 # Custom chunk size and overlap
-python3 chunk.py scrapes/ --out chunks --chunk-size 1500 --chunk-overlap 200
+python3 chunk.py cleaned/ --out chunks --chunk-size 1500 --chunk-overlap 200
 ```
+
+#### Configuration File (chunk.yaml)
+
+The chunker can be configured using a YAML file for easier management:
+
+```yaml
+# Input directory containing markdown files to chunk
+input_dir: cleaned
+
+# Output directory for chunked markdown files
+output_dir: chunks
+
+# Target chunk size in characters
+chunk_size: 1200
+
+# Character overlap between consecutive chunks
+chunk_overlap: 150
+
+# Comma-separated heading levels to split on
+# Use # for H1, ## for H2, etc.
+headers: "#,##,###,####,#####,######"
+```
+
+When `chunk.yaml` exists, you can simply run:
+```bash
+python3 chunk.py
+```
+
+Command-line arguments will override config file settings.
 
 Each chunk preserves the original frontmatter and adds:
 - `chunk_id`: Unique chunk identifier
@@ -303,7 +335,7 @@ python3 scrape.py  # Uses scrape.yaml if present
 python3 clean.py  # Uses clean.yaml if present
 
 # 5. Chunk the cleaned content
-python3 chunk.py cleaned/ --out chunks
+python3 chunk.py  # Uses chunk.yaml if present
 
 # 6. Merge chunks to JSON (optional)
 python3 merge.py chunks -o merged.json --pretty
@@ -317,6 +349,7 @@ python3 merge.py chunks -o merged.json --pretty
 .
 ├── scrape.yaml             # Scraping configuration
 ├── clean.yaml              # Cleaning configuration
+├── chunk.yaml              # Chunking configuration
 ├── urls.txt                # List of URLs to scrape (seed URLs)
 ├── urls_to_scrape.txt      # Queue of URLs to scrape (recursive mode)
 ├── urls_scraped.txt        # Already scraped URLs (recursive mode)
@@ -341,6 +374,7 @@ python3 merge.py chunks -o merged.json --pretty
 **Configuration Files**:
 - `scrape.yaml` - Configure scraping (hop limits, skip patterns, output directories)
 - `clean.yaml` - Configure cleaning (input/output dirs, auto-detection, rules)
+- `chunk.yaml` - Configure chunking (chunk size, overlap, header levels)
 
 **State Files**: When using `--recursive`, the scraper maintains state in `urls_to_scrape.txt` (with hop counts stored as JSON) and `urls_scraped.txt`. Delete these files (or use `--ignore-scraping-state`) to start a fresh crawl.
 

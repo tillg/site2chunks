@@ -1,0 +1,18 @@
+# Markdown Chunking Configuration
+# This file controls the behavior of chunk.py
+
+# Input directory containing markdown files to chunk
+input_dir: cleaned
+
+# Output directory for chunked markdown files
+output_dir: chunks
+
+# Target chunk size in characters
+chunk_size: 1200
+
+# Character overlap between consecutive chunks
+chunk_overlap: 150
+
+# Comma-separated heading levels to split on
+# Use # for H1, ## for H2, etc.
+headers: "#,##,###,####,#####,######"

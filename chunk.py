@@ -260,21 +260,60 @@ def walk_markdown_files(root: Path) -> List[Path]:
     return sorted([p for p in root.rglob("*") if p.suffix.lower() in exts])
 
 
+def load_config(config_path: Path = None) -> Dict[str, Any]:
+    """
+    Load configuration from chunk.yaml if it exists.
+    Returns empty dict if file doesn't exist.
+    """
+    if config_path is None:
+        config_path = Path("chunk.yaml")
+
+    if not config_path.exists():
+        return {}
+
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f) or {}
+            return config
+    except Exception as e:
+        print(f"Warning: Failed to load {config_path}: {e}", file=sys.stderr)
+        return {}
+
+
 def main():
     ap = argparse.ArgumentParser(description="Chunk Markdown files into per-chunk .md with YAML front matter.")
-    ap.add_argument("input", help="Input file or directory of Markdown files")
-    ap.add_argument("--out", required=True, help="Output directory root")
-    ap.add_argument("--chunk-size", type=int, default=1200, help="Target chunk size (characters)")
-    ap.add_argument("--chunk-overlap", type=int, default=150, help="Character overlap between chunks")
-    ap.add_argument("--headers", default="#,##,###,####,#####,######",
+    ap.add_argument("input", nargs='?', help="Input file or directory of Markdown files")
+    ap.add_argument("--out", help="Output directory root")
+    ap.add_argument("--chunk-size", type=int, help="Target chunk size (characters)")
+    ap.add_argument("--chunk-overlap", type=int, help="Character overlap between chunks")
+    ap.add_argument("--headers",
                     help="Comma-separated heading levels to split on (e.g. '#,##,###')")
+    ap.add_argument("--config", default="chunk.yaml", help="Path to configuration file (default: chunk.yaml)")
     args = ap.parse_args()
 
-    input_path = Path(args.input).resolve()
-    out_root = Path(args.out).resolve()
+    # Load config file
+    config = load_config(Path(args.config))
+
+    # Command-line arguments override config file
+    input_arg = args.input or config.get("input_dir")
+    out_arg = args.out or config.get("output_dir")
+    chunk_size = args.chunk_size if args.chunk_size is not None else config.get("chunk_size", 1200)
+    chunk_overlap = args.chunk_overlap if args.chunk_overlap is not None else config.get("chunk_overlap", 150)
+    headers_arg = args.headers or config.get("headers", "#,##,###,####,#####,######")
+
+    # Validate required arguments
+    if not input_arg:
+        print("Error: input directory/file is required (via argument or config file)", file=sys.stderr)
+        sys.exit(1)
+    if not out_arg:
+        print("Error: output directory is required (via --out or config file)", file=sys.stderr)
+        sys.exit(1)
+
+    input_path = Path(input_arg).resolve()
+    out_root = Path(out_arg).resolve()
     ensure_dir(out_root)
 
-    headers_to_split_on = parse_headers_arg(args.headers)
+    headers_to_split_on = parse_headers_arg(headers_arg)
 
     if input_path.is_file():
         files = [input_path]
@@ -292,8 +331,8 @@ def main():
         count = process_file(
             src_path=f,
             out_root=out_root,
-            chunk_size=args.chunk_size,
-            chunk_overlap=args.chunk_overlap,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
             headers_to_split_on=headers_to_split_on,
             root_path=root_path,
         )
