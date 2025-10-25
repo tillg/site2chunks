@@ -28,6 +28,7 @@ merged.json
 
 # QA files
 qa/
+qa.json
 *.qa.json
 questions.json
 curated.json

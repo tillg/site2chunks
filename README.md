@@ -415,23 +415,21 @@ QA pairs are saved as individual markdown files in the `qa/` directory:
 ```markdown
 ---
 chunk_file: chunks/hackingwithswift.com_100_0001.md
+chunk_id: abc-123-def
+source_url: https://www.hackingwithswift.com/100
 generation_model: claude-3-5-haiku-20241022
 generation_date: 2025-10-25
 source_type: interview_question
 confidence: extracted
+section_path:
+- Getting Started
+- Creating Projects
 ---
 
-# Question
-
 How do I create a new Swift project?
-
-# Expected Chunk
-
-**File:** `hackingwithswift.com_100_0001.md`
-**Chunk ID:** `abc-123-def`
-**Source URL:** https://www.hackingwithswift.com/100
-**Section Path:** Getting Started > Creating Projects
 ```
+
+**Note:** All metadata is in the frontmatter. The body contains only the question text.
 
 #### Configuration File (generate_qa.yaml)
 
@@ -521,6 +519,54 @@ Each test case includes:
 * Benchmark different embedding models
 * A/B test chunking strategies
 
+#### Merge QA to JSON (for Swift/RAG systems)
+
+Combine all QA markdown files into a single JSON file for use in Swift applications or other RAG systems:
+
+```bash
+# Merge all QA pairs into a JSON file
+python3 merge_qa.py
+
+# With pretty formatting for readability
+python3 merge_qa.py --pretty
+
+# Custom input/output paths
+python3 merge_qa.py qa/ -o my_qa.json
+
+# For Swift project integration
+python3 merge_qa.py qa/ -o Resources/qa.json --pretty
+```
+
+Each QA pair in the JSON includes:
+* `question` - The question text
+* `chunk_file` - Path to the expected chunk
+* `chunk_id` - Unique chunk identifier
+* `source_url` - Original page URL
+* `generation_model` - Model that generated/extracted the question
+* `generation_date` - Date in YYYY-MM-DD format
+* `source_type` - `interview_question` or `synthetic`
+* `confidence` - `extracted` or `auto-generated`
+* `section_path` - Hierarchical section path (optional)
+* `qa_file` - Source markdown filename
+
+**Example JSON structure:**
+```json
+[
+  {
+    "question": "How do I create a new Swift project?",
+    "chunk_file": "chunks/hackingwithswift.com_100_0001.md",
+    "chunk_id": "abc-123-def",
+    "source_url": "https://www.hackingwithswift.com/100",
+    "generation_model": "claude-3-5-haiku-20241022",
+    "generation_date": "2025-10-25",
+    "source_type": "interview_question",
+    "confidence": "extracted",
+    "section_path": ["Getting Started", "Creating Projects"],
+    "qa_file": "hackingwithswift.com_100_0001_001.md"
+  }
+]
+```
+
 ### Quick Start
 
 ```bash
@@ -549,6 +595,9 @@ python3 merge.py chunks -o merged.json --pretty
 
 # 7. Generate QA test set for retrieval evaluation (optional)
 python3 generate_qa.py --extract-only  # Creates markdown files in qa/
+
+# 8. Merge QA to JSON for Swift/RAG integration (optional)
+python3 merge_qa.py --pretty  # Creates qa.json
 ```
 
 **Note**: With `--recursive`, the scraper discovers and scrapes linked pages automatically. Use `max_hops` to limit crawling depth and `skip_patterns` to exclude unwanted URLs.
@@ -570,6 +619,7 @@ python3 generate_qa.py --extract-only  # Creates markdown files in qa/
 ├── clean.py                # Content cleaning script
 ├── chunk.py                # Markdown chunking script
 ├── merge.py                # Merge chunks to JSON
+├── merge_qa.py             # Merge QA pairs to JSON (for Swift/RAG)
 ├── generate_qa.py          # Generate QA test questions
 ├── review_qa.py            # Review and curate questions
 ├── export_qa.py            # Export to test formats
@@ -589,6 +639,7 @@ python3 generate_qa.py --extract-only  # Creates markdown files in qa/
 │   ├── <chunk_base>_002.md
 │   └── ...
 ├── merged.json             # Combined chunks in JSON format
+├── qa.json                 # Combined QA pairs in JSON format (for Swift/RAG)
 └── test_set.json           # Legacy: final test set for evaluation
 ```
 
