@@ -6,6 +6,7 @@ Each chunk becomes a JSON object with metadata and content.
 
 import json
 import yaml
+import re
 from pathlib import Path
 import argparse
 import sys
@@ -40,10 +41,31 @@ def parse_chunk_file(file_path):
                 elif not isinstance(scrape_date, str):
                     scrape_date = str(scrape_date)
 
+                # If original_url is missing, try to extract it from embedded frontmatter in content
+                original_url = frontmatter.get('original_url', '')
+                title = frontmatter.get('title', '')
+
+                if not original_url and chunk_content.strip().startswith('---'):
+                    # Try to extract from embedded frontmatter
+                    embedded_match = re.match(r'^---\s*\n(.*?)\n---', chunk_content, re.DOTALL)
+                    if embedded_match:
+                        try:
+                            # Try to parse as YAML, but if it fails, extract with regex
+                            embedded_text = embedded_match.group(1)
+                            url_match = re.search(r'^original_url:\s*(.+)$', embedded_text, re.MULTILINE)
+                            if url_match:
+                                original_url = url_match.group(1).strip()
+                            if not title:
+                                title_match = re.search(r'^title:\s*(.+)$', embedded_text, re.MULTILINE)
+                                if title_match:
+                                    title = title_match.group(1).strip()
+                        except:
+                            pass
+
                 chunk_data = {
-                    'original_url': frontmatter.get('original_url', ''),
+                    'original_url': original_url,
                     'scrape_date': scrape_date,
-                    'title': frontmatter.get('title', ''),
+                    'title': title,
                     'chunk_index': frontmatter.get('chunk_index', 0),
                     'content': chunk_content
                 }
