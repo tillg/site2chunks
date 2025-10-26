@@ -154,28 +154,86 @@ class SmartHeaderTextSplitter:
             'section_headers': section_headers
         }
 
-    def _find_best_split_point(self, text: str, max_pos: int) -> Optional[int]:
+    def _find_best_split_point(
+        self,
+        text: str,
+        max_pos: int,
+        min_pos: int = 0
+    ) -> Optional[int]:
         """
-        Find the best split point (last high-level header before max_pos).
+        Find the best split point using hierarchical fallback strategy.
+
+        Priority (from best to worst):
+        1. High-level headers (up to max_header_level)
+        2. Lower-level headers (beyond max_header_level)
+        3. Paragraph breaks (double newline)
+        4. Sentence endings (. ! ?)
+        5. Comma breaks
+        6. Word boundaries (space)
+        7. None (caller will use hard cut at max_pos)
 
         Args:
             text: Text to search
             max_pos: Maximum position to search up to
+            min_pos: Minimum position to consider (avoid tiny chunks)
 
         Returns:
-            Position of best split point, or None if no suitable header found
+            Position of best split point, or None if no suitable point found
         """
+        # Strategy 1: High-level headers (H1-H{max_header_level})
         headers = self._find_header_positions(text)
-
-        # Find last header before max_pos, but after position 0
         best_pos = None
-        for pos, _, __, ___ in headers:
-            if 0 < pos < max_pos:  # Don't split at position 0
+        for pos, _, _header, _level in headers:
+            if min_pos < pos < max_pos:
                 best_pos = pos
             elif pos >= max_pos:
-                break  # No point checking further
+                break
+        if best_pos is not None:
+            return best_pos
 
-        return best_pos
+        # Strategy 2: Lower-level headers (beyond max_header_level)
+        if self.max_header_level < 6:
+            lower_header_pattern = re.compile(
+                '|'.join([
+                    f"^{'#' * level} .+$"
+                    for level in range(self.max_header_level + 1, 7)
+                ]),
+                re.MULTILINE
+            )
+            for match in lower_header_pattern.finditer(text):
+                pos = match.start()
+                if min_pos < pos < max_pos:
+                    best_pos = pos
+                elif pos >= max_pos:
+                    break
+            if best_pos is not None:
+                return best_pos
+
+        # Strategy 3: Paragraph breaks (double newline)
+        # Find all occurrences of \n\n
+        pos = text.rfind('\n\n', min_pos, max_pos)
+        if pos > min_pos:
+            return pos + 2  # Skip past the double newline
+
+        # Strategy 4: Sentence endings
+        # Look for ". ", "! ", "? " (with space after)
+        for pattern in ['. ', '! ', '? ']:
+            pos = text.rfind(pattern, min_pos, max_pos)
+            if pos > min_pos:
+                return pos + len(pattern)
+
+        # Strategy 5: Comma breaks
+        pos = text.rfind(', ', min_pos, max_pos)
+        if pos > min_pos:
+            return pos + 2
+
+        # Strategy 6: Word boundaries
+        pos = text.rfind(' ', min_pos, max_pos)
+        if pos > min_pos:
+            return pos + 1
+
+        # Strategy 7: No good break found
+        return None
 
     def split_text(self, text: str) -> List[Document]:
         """
@@ -192,6 +250,7 @@ class SmartHeaderTextSplitter:
 
         chunks = []
         current_pos = 0
+        min_chunk_size = 100  # Minimum size for middle chunks
 
         while current_pos < len(text):
             remaining_text = text[current_pos:]
@@ -209,11 +268,13 @@ class SmartHeaderTextSplitter:
                     ))
                 break
 
-            # Find best split point (last header before chunk_size limit)
-            # Search within the current slice of text
+            # Find best split point using hierarchical fallback strategy
+            # Pass min_chunk_size to avoid creating tiny first chunks
+            min_pos = min_chunk_size if len(chunks) == 0 else 0
             split_pos = self._find_best_split_point(
                 remaining_text,
-                self.chunk_size
+                self.chunk_size,
+                min_pos
             )
 
             if split_pos is None:
@@ -225,7 +286,20 @@ class SmartHeaderTextSplitter:
             # Extract chunk
             chunk_text = text[current_pos:chunk_end].strip()
 
-            if chunk_text:  # Only add non-empty chunks
+            # Add chunk with size filtering
+            # Always add first chunk (even if small, might be title/intro)
+            # For subsequent chunks, skip if too small (likely just a header with no content)
+            should_add = False
+            if chunk_text:
+                if len(chunks) == 0:
+                    # First chunk - always add if non-empty
+                    should_add = True
+                elif len(chunk_text) >= min_chunk_size:
+                    # Subsequent chunk with enough content
+                    should_add = True
+                # else: skip tiny middle chunks (< 100 chars)
+
+            if should_add:
                 metadata = self._extract_metadata_from_headers(
                     text, current_pos, chunk_end
                 )
@@ -250,25 +324,6 @@ class SmartHeaderTextSplitter:
             # Safety check to prevent infinite loops
             if current_pos >= len(text):
                 break
-
-        # Post-processing: merge small first chunk with second chunk if exists
-        # This handles content before the first header
-        if len(chunks) > 1 and len(chunks[0].page_content) < self.chunk_size // 3:
-            # Merge first two chunks
-            first_chunk = chunks[0]
-            second_chunk = chunks[1]
-
-            merged_content = first_chunk.page_content + "\n\n" + second_chunk.page_content
-            merged_metadata = second_chunk.metadata.copy()  # Use second chunk's metadata
-
-            chunks[0] = Document(
-                page_content=merged_content,
-                metadata=merged_metadata
-            )
-            chunks.pop(1)  # Remove the second chunk
-
-            # Update total_chunks count in remaining chunks
-            # (This will be handled by chunk.py when writing)
 
         return chunks
 

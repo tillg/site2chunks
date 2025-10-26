@@ -12,6 +12,7 @@ delete_files:
   - hackingwithswift.com_playgrounds_feed.json.md  # Playgrounds JSON feed
   - hackingwithswift.com_forums_plus_search-tokens-not-working_29015.md  # Forum post
   - hackingwithswift.com_forums_plus.md  # Forums index page
+  - hackingwithswift.com_forums_tvos.md
 
 rules:
   # Remove navigation menu (appears at top of every page)
