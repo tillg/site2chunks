@@ -207,24 +207,6 @@ def main():
                 print(f"Would flush output directory: {output_arg}")
             print()
 
-    # Delete files listed in config (before cleaning)
-    if config.delete_files and output_arg:
-        output_path = Path(output_arg)
-        if output_path.exists():
-            deleted_count = 0
-            for filename in config.delete_files:
-                file_to_delete = output_path / filename
-                if file_to_delete.exists():
-                    if not dry_run:
-                        file_to_delete.unlink()
-                    deleted_count += 1
-                    if args.verbose:
-                        print(f"Deleted: {filename}")
-
-            if deleted_count > 0:
-                action = "Would delete" if dry_run else "Deleted"
-                print(f"{action} {deleted_count} file(s) from delete_files list\n")
-
     # Preview mode
     if args.preview:
         if input_path.is_file():
@@ -311,6 +293,41 @@ def main():
             import traceback
             traceback.print_exc()
         sys.exit(1)
+
+    # Delete files listed in config (after cleaning)
+    if config.delete_files and output_arg:
+        output_path = Path(output_arg)
+        if output_path.exists():
+            deleted_count = 0
+            for pattern_or_filename in config.delete_files:
+                # Skip empty entries
+                if not pattern_or_filename or not pattern_or_filename.strip():
+                    continue
+
+                # Check if pattern contains wildcards
+                if '*' in pattern_or_filename or '?' in pattern_or_filename:
+                    # Use glob to find matching files
+                    matching_files = list(output_path.glob(pattern_or_filename))
+                    for file_to_delete in matching_files:
+                        if file_to_delete.is_file():
+                            if not dry_run:
+                                file_to_delete.unlink()
+                            deleted_count += 1
+                            if args.verbose:
+                                print(f"Deleted: {file_to_delete.name}")
+                else:
+                    # Exact filename match
+                    file_to_delete = output_path / pattern_or_filename
+                    if file_to_delete.exists():
+                        if not dry_run:
+                            file_to_delete.unlink()
+                        deleted_count += 1
+                        if args.verbose:
+                            print(f"Deleted: {pattern_or_filename}")
+
+            if deleted_count > 0:
+                action = "Would delete" if dry_run else "Deleted"
+                print(f"\n{action} {deleted_count} file(s) from delete_files list")
 
     print("\n✓ Done!")
 

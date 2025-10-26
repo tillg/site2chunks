@@ -10,9 +10,7 @@ delete_files:
   - hackingwithswift.com_samples_friendface.json.md  # JSON data file
   - hackingwithswift.com_articles_rss.md  # RSS feed dump
   - hackingwithswift.com_playgrounds_feed.json.md  # Playgrounds JSON feed
-  - hackingwithswift.com_forums_plus_search-tokens-not-working_29015.md  # Forum post
-  - hackingwithswift.com_forums_plus.md  # Forums index page
-  - hackingwithswift.com_forums_tvos.md
+  - hackingwithswift.com_forums_*.md  # All forum pages (using wildcard)
 
 rules:
   # Remove navigation menu (appears at top of every page)
@@ -274,10 +272,17 @@ rules:
     pattern: '^\[Paul Hudson\]\(/about\).*?@twostraws.*?$'
     flags: [MULTILINE]
 
-  # Remove previous/next navigation tables
+  # Remove previous/next navigation tables (multi-row format with headers)
   - type: regex
     description: "Previous/next navigation tables"
     pattern: '^\|  \|  \|  \|\n\| --- \| --- \| --- \|\n\| \[<.*?\] \|  \| \[.*?>\] \|$'
+    flags: [MULTILINE]
+
+  # Remove single-row navigation tables (common format: | [< Previous] |  | [Next >] |)
+  # Note: Uses \s to match both regular spaces and non-breaking spaces (\xa0)
+  - type: regex
+    description: "Single-row previous/next/ToC navigation tables"
+    pattern: '^\|\s\[<\s[^\]]+\]\([^\)]+\)\s\|\s{1,2}\|\s\[[^\]]+\]\([^\)]+\)\s\|$'
     flags: [MULTILINE]
 
   # Remove table of contents navigation rows
