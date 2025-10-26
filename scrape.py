@@ -420,7 +420,7 @@ def scrape(url, output_file=None, output_dir="scrapes", url_queue=None):
         return (None, [])
 
 
-def load_config(config_file="scrape_config.yaml"):
+def load_config(config_file="scrape.yaml"):
     """
     Load configuration from YAML file.
 
@@ -542,12 +542,12 @@ def main():
 
     parser = argparse.ArgumentParser(
         description='Scrape web pages and convert to markdown with frontmatter',
-        epilog='Supports recursive crawling with state management. Can be configured via scrape_config.yaml.'
+        epilog='Supports recursive crawling with state management. Can be configured via scrape.yaml.'
     )
     parser.add_argument(
         'input',
         nargs='?',
-        help='URL to scrape OR path to file containing URLs (optional if scrape_config.yaml exists)'
+        help='URL to scrape OR path to file containing URLs (optional if scrape.yaml exists)'
     )
     parser.add_argument(
         '-o', '--output',
@@ -572,8 +572,8 @@ def main():
     )
     parser.add_argument(
         '--config',
-        default='scrape_config.yaml',
-        help='Path to configuration file (default: scrape_config.yaml)'
+        default='scrape.yaml',
+        help='Path to configuration file (default: scrape.yaml)'
     )
     parser.add_argument(
         '--max-hops',
