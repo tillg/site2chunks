@@ -361,15 +361,14 @@ def scrape(url, output_file=None, output_dir="scrapes", url_queue=None):
         else:
             file_path = output_path / clean_filename(url)
 
-        # Create frontmatter
+        # Create frontmatter using yaml.safe_dump for proper escaping
         scrape_date = datetime.now().strftime('%Y-%m-%d')
-        frontmatter = f"""---
-original_url: {url}
-scrape_date: {scrape_date}
-title: {title}
----
-
-"""
+        frontmatter_dict = {
+            'original_url': str(url),
+            'scrape_date': str(scrape_date),
+            'title': str(title)
+        }
+        frontmatter = "---\n" + yaml.safe_dump(frontmatter_dict, allow_unicode=True, sort_keys=False) + "---\n\n"
 
         # Write the file
         with open(file_path, 'w', encoding='utf-8') as f:
