@@ -11,6 +11,8 @@ from pathlib import Path
 import argparse
 import sys
 
+import frontmatter_utils
+
 
 def parse_chunk_file(file_path):
     """
@@ -21,81 +23,64 @@ def parse_chunk_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Parse frontmatter
-    if content.startswith('---\n'):
-        try:
-            # Find the closing ---
-            end_marker = content.find('\n---\n', 4)
-            if end_marker != -1:
-                frontmatter_str = content[4:end_marker]
-                chunk_content = content[end_marker + 5:].strip()
+    # Use shared utility to parse frontmatter (non-strict for malformed YAML)
+    try:
+        frontmatter, chunk_content = frontmatter_utils.parse_frontmatter(content, strict=False)
+    except Exception as e:
+        print(f"Error parsing frontmatter in {file_path}: {e}", file=sys.stderr)
+        return None
 
-                # Parse YAML frontmatter
-                frontmatter = yaml.safe_load(frontmatter_str) or {}
+    if not frontmatter:
+        # No frontmatter found
+        return {
+            'original_url': '',
+            'scrape_date': '',
+            'title': '',
+            'chunk_index': 0,
+            'content': content
+        }
 
-                # Extract the specific fields we want
-                # Convert date objects to strings if necessary
-                scrape_date = frontmatter.get('scrape_date', '')
-                if hasattr(scrape_date, 'isoformat'):
-                    scrape_date = scrape_date.isoformat()
-                elif not isinstance(scrape_date, str):
-                    scrape_date = str(scrape_date)
+    # Extract the specific fields we want
+    # Convert date objects to strings if necessary
+    scrape_date = frontmatter.get('scrape_date', '')
+    if hasattr(scrape_date, 'isoformat'):
+        scrape_date = scrape_date.isoformat()
+    elif not isinstance(scrape_date, str):
+        scrape_date = str(scrape_date)
 
-                # If original_url is missing, try to extract it from embedded frontmatter in content
-                original_url = frontmatter.get('original_url', '')
-                title = frontmatter.get('title', '')
+    # If original_url is missing, try to extract it from embedded frontmatter in content
+    original_url = frontmatter.get('original_url', '')
+    title = frontmatter.get('title', '')
 
-                if not original_url and chunk_content.strip().startswith('---'):
-                    # Try to extract from embedded frontmatter
-                    embedded_match = re.match(r'^---\s*\n(.*?)\n---', chunk_content, re.DOTALL)
-                    if embedded_match:
-                        try:
-                            # Try to parse as YAML, but if it fails, extract with regex
-                            embedded_text = embedded_match.group(1)
-                            url_match = re.search(r'^original_url:\s*(.+)$', embedded_text, re.MULTILINE)
-                            if url_match:
-                                original_url = url_match.group(1).strip()
-                            if not title:
-                                title_match = re.search(r'^title:\s*(.+)$', embedded_text, re.MULTILINE)
-                                if title_match:
-                                    title = title_match.group(1).strip()
-                        except:
-                            pass
+    if not original_url and chunk_content.strip().startswith('---'):
+        # Try to extract from embedded frontmatter (legacy issue from old chunks)
+        embedded_fm, _ = frontmatter_utils.parse_frontmatter(chunk_content, strict=False)
+        if embedded_fm:
+            original_url = embedded_fm.get('original_url', original_url)
+            if not title:
+                title = embedded_fm.get('title', '')
 
-                chunk_data = {
-                    'original_url': original_url,
-                    'scrape_date': scrape_date,
-                    'title': title,
-                    'chunk_index': frontmatter.get('chunk_index', 0),
-                    'content': chunk_content
-                }
-
-                # Optional: include other useful metadata
-                if 'total_chunks' in frontmatter:
-                    chunk_data['total_chunks'] = frontmatter['total_chunks']
-                if 'source_file' in frontmatter:
-                    chunk_data['source_file'] = frontmatter['source_file']
-                if 'section_path' in frontmatter:
-                    chunk_data['section_path'] = frontmatter['section_path']
-                if 'char_count' in frontmatter:
-                    chunk_data['char_count'] = frontmatter['char_count']
-                if 'word_count' in frontmatter:
-                    chunk_data['word_count'] = frontmatter['word_count']
-
-                return chunk_data
-
-        except yaml.YAMLError as e:
-            print(f"Error parsing YAML in {file_path}: {e}", file=sys.stderr)
-            return None
-
-    # No frontmatter found
-    return {
-        'original_url': '',
-        'scrape_date': '',
-        'title': '',
-        'chunk_index': 0,
-        'content': content
+    chunk_data = {
+        'original_url': original_url,
+        'scrape_date': scrape_date,
+        'title': title,
+        'chunk_index': frontmatter.get('chunk_index', 0),
+        'content': chunk_content.strip()
     }
+
+    # Optional: include other useful metadata
+    if 'total_chunks' in frontmatter:
+        chunk_data['total_chunks'] = frontmatter['total_chunks']
+    if 'source_file' in frontmatter:
+        chunk_data['source_file'] = frontmatter['source_file']
+    if 'section_path' in frontmatter:
+        chunk_data['section_path'] = frontmatter['section_path']
+    if 'char_count' in frontmatter:
+        chunk_data['char_count'] = frontmatter['char_count']
+    if 'word_count' in frontmatter:
+        chunk_data['word_count'] = frontmatter['word_count']
+
+    return chunk_data
 
 
 def merge_chunks(input_dir, output_file, pretty=False):

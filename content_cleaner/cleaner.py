@@ -1,8 +1,14 @@
 """Main content cleaning engine."""
 
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# Add parent directory to path to import frontmatter_utils
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import frontmatter_utils
+
 from .config import CleaningConfig
 
 
@@ -53,7 +59,7 @@ class ContentCleaner:
             original_content = f.read()
 
         # Separate frontmatter from body before cleaning
-        frontmatter, body = self._extract_frontmatter(original_content)
+        frontmatter, body = frontmatter_utils.extract_frontmatter_text(original_content)
 
         # Clean only the body content
         cleaned_body = self.clean_content(body)
@@ -200,27 +206,6 @@ class ContentCleaner:
             i += 1
 
         return '\n'.join(preview)
-
-    def _extract_frontmatter(self, content: str) -> tuple[str, str]:
-        """
-        Extract YAML frontmatter from content.
-        Returns (frontmatter_with_delimiters, body_content).
-        If no frontmatter, returns ('', content).
-        """
-        if not content.startswith('---\n'):
-            return '', content
-
-        # Find the closing ---
-        end_marker = content.find('\n---\n', 4)
-        if end_marker == -1:
-            # No closing marker found, treat as no frontmatter
-            return '', content
-
-        # frontmatter includes the delimiters and trailing newlines
-        frontmatter = content[:end_marker + 5]  # Includes '---\n...content...\n---\n'
-        body = content[end_marker + 5:]
-
-        return frontmatter, body
 
     def _normalize_whitespace(self, content: str) -> str:
         """Clean up excessive blank lines and trailing whitespace."""

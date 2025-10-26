@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 
+import frontmatter_utils
+
 # --- deps ---
 try:
     from langchain_text_splitters import (
@@ -59,18 +61,8 @@ def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
     Extract YAML frontmatter from markdown text.
     Returns (frontmatter_dict, content_without_frontmatter)
     """
-    if text.startswith('---\n'):
-        try:
-            # Find the closing ---
-            end_marker = text.find('\n---\n', 4)
-            if end_marker != -1:
-                fm_text = text[4:end_marker]
-                content = text[end_marker + 5:]  # Skip past \n---\n
-                fm_dict = yaml.safe_load(fm_text) or {}
-                return fm_dict, content
-        except yaml.YAMLError:
-            pass
-    return {}, text
+    # Use shared utility with non-strict mode to handle malformed YAML
+    return frontmatter_utils.parse_frontmatter(text, strict=False)
 
 def write_text(path: Path, text: str):
     path.parent.mkdir(parents=True, exist_ok=True)
