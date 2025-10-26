@@ -1,6 +1,7 @@
 """Configuration loader for cleaning rules."""
 
 import yaml
+import re
 from pathlib import Path
 from typing import List, Dict, Any
 from .rules import (
@@ -100,8 +101,17 @@ class CleaningConfig:
         if len(parts) < 3:
             return ""
 
-        frontmatter = yaml.safe_load(parts[1])
-        original_url = frontmatter.get('original_url', '')
+        original_url = ''
+
+        # Try to parse as YAML first
+        try:
+            frontmatter = yaml.safe_load(parts[1])
+            original_url = frontmatter.get('original_url', '')
+        except yaml.YAMLError:
+            # If YAML parsing fails (e.g., unquoted colons in title), use regex fallback
+            url_match = re.search(r'^original_url:\s*(.+)$', parts[1], re.MULTILINE)
+            if url_match:
+                original_url = url_match.group(1).strip()
 
         # Extract domain from URL
         if original_url:

@@ -52,8 +52,14 @@ class ContentCleaner:
         with open(file_path_obj, 'r', encoding='utf-8') as f:
             original_content = f.read()
 
-        # Clean content
-        cleaned_content = self.clean_content(original_content)
+        # Separate frontmatter from body before cleaning
+        frontmatter, body = self._extract_frontmatter(original_content)
+
+        # Clean only the body content
+        cleaned_body = self.clean_content(body)
+
+        # Reassemble: frontmatter + cleaned body
+        cleaned_content = frontmatter + cleaned_body
 
         # Calculate statistics
         original_size = len(original_content)
@@ -194,6 +200,27 @@ class ContentCleaner:
             i += 1
 
         return '\n'.join(preview)
+
+    def _extract_frontmatter(self, content: str) -> tuple[str, str]:
+        """
+        Extract YAML frontmatter from content.
+        Returns (frontmatter_with_delimiters, body_content).
+        If no frontmatter, returns ('', content).
+        """
+        if not content.startswith('---\n'):
+            return '', content
+
+        # Find the closing ---
+        end_marker = content.find('\n---\n', 4)
+        if end_marker == -1:
+            # No closing marker found, treat as no frontmatter
+            return '', content
+
+        # frontmatter includes the delimiters and trailing newlines
+        frontmatter = content[:end_marker + 5]  # Includes '---\n...content...\n---\n'
+        body = content[end_marker + 5:]
+
+        return frontmatter, body
 
     def _normalize_whitespace(self, content: str) -> str:
         """Clean up excessive blank lines and trailing whitespace."""
