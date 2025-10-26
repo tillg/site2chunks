@@ -159,7 +159,7 @@ class SmartHeaderTextSplitter:
         text: str,
         max_pos: int,
         min_pos: int = 0
-    ) -> Optional[int]:
+    ) -> Tuple[Optional[int], bool]:
         """
         Find the best split point using hierarchical fallback strategy.
 
@@ -178,9 +178,12 @@ class SmartHeaderTextSplitter:
             min_pos: Minimum position to consider (avoid tiny chunks)
 
         Returns:
-            Position of best split point, or None if no suitable point found
+            Tuple of (position, is_header_split):
+            - position: Best split point, or None if no suitable point found
+            - is_header_split: True if split at a header (no overlap needed)
         """
         # Strategy 1: High-level headers (H1-H{max_header_level})
+        # Only use if min_pos constraint is satisfied (avoids tiny first chunks)
         headers = self._find_header_positions(text)
         best_pos = None
         for pos, _, _header, _level in headers:
@@ -189,10 +192,11 @@ class SmartHeaderTextSplitter:
             elif pos >= max_pos:
                 break
         if best_pos is not None:
-            return best_pos
+            return (best_pos, True)  # Header split, no overlap needed
 
         # Strategy 2: Lower-level headers (beyond max_header_level)
-        if self.max_header_level < 6:
+        # Only use if min_pos is 0 (not first chunk)
+        if self.max_header_level < 6 and min_pos == 0:
             lower_header_pattern = re.compile(
                 '|'.join([
                     f"^{'#' * level} .+$"
@@ -207,33 +211,33 @@ class SmartHeaderTextSplitter:
                 elif pos >= max_pos:
                     break
             if best_pos is not None:
-                return best_pos
+                return (best_pos, True)  # Header split, no overlap needed
 
         # Strategy 3: Paragraph breaks (double newline)
         # Find all occurrences of \n\n
         pos = text.rfind('\n\n', min_pos, max_pos)
         if pos > min_pos:
-            return pos + 2  # Skip past the double newline
+            return (pos + 2, False)  # Non-header split, use overlap
 
         # Strategy 4: Sentence endings
         # Look for ". ", "! ", "? " (with space after)
         for pattern in ['. ', '! ', '? ']:
             pos = text.rfind(pattern, min_pos, max_pos)
             if pos > min_pos:
-                return pos + len(pattern)
+                return (pos + len(pattern), False)  # Non-header split, use overlap
 
         # Strategy 5: Comma breaks
         pos = text.rfind(', ', min_pos, max_pos)
         if pos > min_pos:
-            return pos + 2
+            return (pos + 2, False)  # Non-header split, use overlap
 
         # Strategy 6: Word boundaries
         pos = text.rfind(' ', min_pos, max_pos)
         if pos > min_pos:
-            return pos + 1
+            return (pos + 1, False)  # Non-header split, use overlap
 
         # Strategy 7: No good break found
-        return None
+        return (None, False)
 
     def split_text(self, text: str) -> List[Document]:
         """
@@ -250,7 +254,9 @@ class SmartHeaderTextSplitter:
 
         chunks = []
         current_pos = 0
-        min_chunk_size = 100  # Minimum size for middle chunks
+        # Minimum size for first chunk to avoid tiny orphans
+        # Set to 1/3 of chunk_size to ensure meaningful content
+        min_chunk_size = self.chunk_size // 3
 
         while current_pos < len(text):
             remaining_text = text[current_pos:]
@@ -269,17 +275,19 @@ class SmartHeaderTextSplitter:
                 break
 
             # Find best split point using hierarchical fallback strategy
-            # Pass min_chunk_size to avoid creating tiny first chunks
+            # For first chunk, ensure split creates a chunk >= min_chunk_size
+            # For subsequent chunks, no minimum position constraint
             min_pos = min_chunk_size if len(chunks) == 0 else 0
-            split_pos = self._find_best_split_point(
+            split_pos, is_header_split = self._find_best_split_point(
                 remaining_text,
                 self.chunk_size,
                 min_pos
             )
 
             if split_pos is None:
-                # No suitable header found, fall back to chunk_size
+                # No suitable split point found, fall back to chunk_size
                 chunk_end = current_pos + self.chunk_size
+                is_header_split = False
             else:
                 chunk_end = current_pos + split_pos
 
@@ -309,16 +317,16 @@ class SmartHeaderTextSplitter:
                 ))
 
             # Move to next position
-            if split_pos is not None:
-                # We split at a header - this is a natural boundary, no overlap needed
+            if is_header_split:
+                # We split at a header - this is a semantic boundary, no overlap needed
                 # Move to the split position (the header itself)
                 current_pos = chunk_end
             elif self.chunk_overlap > 0:
-                # No header split, use overlap for better continuity
+                # Non-header split (paragraph, sentence, word, etc.), use overlap for continuity
                 # Back up by overlap amount from chunk end
                 current_pos = max(chunk_end - self.chunk_overlap, current_pos + 1)
             else:
-                # No overlap - just move to chunk end
+                # No overlap configured - just move to chunk end
                 current_pos = chunk_end
 
             # Safety check to prevent infinite loops

@@ -132,16 +132,17 @@ The smart strategy implements intelligent, content-aware chunking:
 **Algorithm:**
 1. Check if remaining content < chunk_size → keep as-is
 2. Find the **last high-level header** (≤ H3 by default) before chunk_size limit
-3. Split at that header boundary
-4. Continue with remaining content
-5. Merge small first chunks (< 1/3 chunk_size) with following chunk
+3. For the first chunk, skip headers before min_pos (1/3 of chunk_size, default ~400 chars) to prevent tiny chunks
+4. Split at that header boundary
+5. Continue with remaining content
 
 **Benefits:**
-- ✅ No tiny chunks from pre-header content
+- ✅ Prevents tiny first chunks via min_pos constraint (1/3 of chunk_size)
 - ✅ Respects document hierarchy and semantic structure
 - ✅ Natural boundaries at high-level headers
 - ✅ More efficient (fewer, better-sized chunks)
 - ✅ Configurable header level threshold
+- ✅ No post-processing needed - chunks where it belongs
 
 **Configuration:**
 ```yaml
