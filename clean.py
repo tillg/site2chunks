@@ -95,6 +95,18 @@ def main():
         help='Show detailed diff preview for first file'
     )
 
+    parser.add_argument(
+        '--flush',
+        action='store_true',
+        help='Delete output directory before cleaning (flush-and-fill)'
+    )
+
+    parser.add_argument(
+        '--no-flush',
+        action='store_true',
+        help='Do not delete output directory (overrides config file)'
+    )
+
     args = parser.parse_args()
 
     # Load config file if it exists
@@ -108,6 +120,14 @@ def main():
     auto_detect = args.auto_detect or file_config.get('auto_detect', False)
     config_file = args.config or file_config.get('config_file')
     rules_dir = file_config.get('rules_dir', 'clean_rules')
+
+    # Determine flush behavior (CLI args override config)
+    if args.no_flush:
+        flush = False
+    elif args.flush:
+        flush = True
+    else:
+        flush = file_config.get('flush', False)
 
     # Validate arguments
     if not input_arg:
@@ -175,6 +195,18 @@ def main():
     # Create cleaner
     cleaner = ContentCleaner(config)
 
+    # Flush output directory if requested
+    if flush and output_arg:
+        output_path = Path(output_arg)
+        if output_path.exists():
+            if not dry_run:
+                import shutil
+                shutil.rmtree(output_path)
+                print(f"Flushed output directory: {output_arg}")
+            else:
+                print(f"Would flush output directory: {output_arg}")
+            print()
+
     # Delete files listed in config (before cleaning)
     if config.delete_files and output_arg:
         output_path = Path(output_arg)
@@ -219,6 +251,7 @@ def main():
         print(f"Output: {output_arg}")
     print(f"Config: {config.config_path}")
     print(f"Rules: {len(config.get_rules())}")
+    print(f"Flush: {'Yes' if flush else 'No'}")
 
     if dry_run:
         print("\n*** DRY RUN MODE - No files will be modified ***\n")

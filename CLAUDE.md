@@ -66,9 +66,13 @@ source .venv/bin/activate
    - Preserves YAML frontmatter and valuable content
 
 3. **Chunking**: `chunk.py` splits markdown into smaller chunks
-   - Hierarchy-aware splitting based on headers
-   - Preserves frontmatter and adds chunk metadata
-   - Configurable chunk size and overlap
+   - **Two-stage hierarchy-aware strategy**:
+     - Stage 1: Split on markdown headers to preserve document structure
+     - Stage 2: Split large sections further (code-fence aware)
+   - Preserves original frontmatter from source files
+   - Adds rich chunk metadata (breadcrumbs, hierarchy level, word/char counts)
+   - Configurable chunk size, overlap, and header levels
+   - Generates UUID for each chunk for tracking
 
 4. **Merging**: `merge.py` combines chunks into single JSON file
    - For bulk processing or app bundle integration
@@ -103,11 +107,140 @@ merged.json       # Combined JSON output
 - `cleaner.py`: Main cleaning engine with validation
 
 **chunk.py**
-- Hierarchy-aware markdown splitting
-- Preserves frontmatter, adds chunk metadata
+- Two-stage chunking strategy:
+  1. **MarkdownHeaderTextSplitter**: Splits on markdown headers (#, ##, ###, etc.)
+  2. **MarkdownTextSplitter**: Further splits long sections while preserving code fences
+- Preserves original frontmatter and adds chunk-specific metadata
+- Configurable via `chunk.yaml` or command-line args
 
 **merge.py**
 - Combines chunks into single JSON file
+
+## Chunking Strategy Details
+
+### Available Strategies
+
+The chunker supports two strategies (configured via `chunk.yaml`):
+
+1. **Smart Strategy** (Recommended, Default)
+2. **Legacy Strategy** (Original LangChain two-stage approach)
+
+### Smart Strategy (Default)
+
+The smart strategy implements intelligent, content-aware chunking:
+
+**Algorithm:**
+1. Check if remaining content < chunk_size → keep as-is
+2. Find the **last high-level header** (≤ H3 by default) before chunk_size limit
+3. Split at that header boundary
+4. Continue with remaining content
+5. Merge small first chunks (< 1/3 chunk_size) with following chunk
+
+**Benefits:**
+- ✅ No tiny chunks from pre-header content
+- ✅ Respects document hierarchy and semantic structure
+- ✅ Natural boundaries at high-level headers
+- ✅ More efficient (fewer, better-sized chunks)
+- ✅ Configurable header level threshold
+
+**Configuration:**
+```yaml
+strategy: "smart"
+max_header_level: 3  # Split on H1, H2, H3 only
+```
+
+### Legacy Strategy
+
+The original two-stage hierarchy-aware strategy from LangChain:
+
+#### Stage 1: Header-Based Splitting (MarkdownHeaderTextSplitter)
+Splits the document at markdown header boundaries to preserve document structure:
+- Splits at specified header levels (default: `#` through `######`)
+- Captures heading hierarchy in metadata (h1, h2, h3, etc.)
+- Preserves headers in the chunk content (`strip_headers=False`)
+- Creates section breadcrumbs (e.g., ["Introduction", "Getting Started", "Installation"])
+
+#### Stage 2: Size-Based Splitting (MarkdownTextSplitter)
+For each section from Stage 1, further splits content that exceeds `chunk_size`:
+- **Code-fence aware**: Won't break code blocks mid-fence
+- Respects `chunk_size` (characters) as target maximum
+- Applies `chunk_overlap` for context continuity between chunks
+- Creates multiple sub-chunks if section is very large
+
+**Drawbacks:**
+- ⚠️ Can create many tiny chunks from short sections
+- ⚠️ Splits at ALL header levels (not just high-level ones)
+- ⚠️ Pre-header content becomes tiny orphan chunks
+
+**Configuration:**
+```yaml
+strategy: "legacy"
+headers: "#,##,###,####,#####,######"  # All headers
+```
+
+### Chunking Variables
+
+| Variable | Default | Unit | Description |
+|----------|---------|------|-------------|
+| **strategy** | `smart` | string | Chunking strategy: `"smart"` (recommended) or `"legacy"` |
+| **chunk_size** | 1200 | characters | Target maximum size for each chunk. Sections exceeding this are split further. |
+| **chunk_overlap** | 150 | characters | Overlap between consecutive chunks (legacy strategy only; smart uses natural boundaries). |
+| **max_header_level** | 3 | 1-6 | Maximum header level to split on (smart strategy only). 1=H1 only, 3=H1-H3, 6=all headers. |
+| **headers** | `#,##,###,####,#####,######` | markdown | Header levels to split on (legacy strategy only). |
+
+### Output Metadata
+
+Each chunk file includes YAML frontmatter with:
+
+**Preserved from original file:**
+- `original_url`: Source URL from scraping
+- `scrape_date`: When content was scraped
+- `title`: Original page title
+- Any other custom frontmatter fields
+
+**Added by chunker:**
+- `chunk_id`: Unique UUID for this chunk
+- `chunk_created_at`: ISO timestamp of chunking
+- `source_file`: Relative path to source markdown file
+- `chunk_index`: Zero-based index (e.g., 0, 1, 2...)
+- `total_chunks`: Total number of chunks from this file
+- `section_path`: Ordered list of headers (breadcrumb trail)
+- `section_level`: Depth in hierarchy (1-6, or 0 if no headers)
+- `section_headers`: Raw header mapping from LangChain
+- `char_count`: Character count of chunk content
+- `word_count`: Word count of chunk content
+- `splitter`: Algorithm used (`SmartHeaderTextSplitter` or `MarkdownHeaderTextSplitter+MarkdownTextSplitter`)
+- `chunk_size`: Configuration value used
+- `chunk_overlap`: Configuration value used
+
+### Example Chunk Output
+
+```markdown
+---
+original_url: https://example.com/tutorial
+scrape_date: '2025-01-15T10:30:00Z'
+title: 'Swift Tutorial'
+chunk_id: 550e8400-e29b-41d4-a716-446655440000
+chunk_created_at: '2025-01-16T14:22:33Z'
+source_file: example_com_tutorial.md
+chunk_index: 2
+total_chunks: 8
+section_path:
+  - Introduction
+  - Basic Concepts
+  - Variables
+section_level: 3
+char_count: 1150
+word_count: 192
+splitter: SmartHeaderTextSplitter
+chunk_size: 1200
+chunk_overlap: 150
+---
+
+### Variables
+
+In Swift, you declare variables using the `var` keyword...
+```
 
 ## Configuration Files
 
@@ -130,7 +263,28 @@ rules_dir: clean_rules
 auto_detect: true
 pattern: "*.md"
 dry_run: false
+flush: true  # Delete output directory before cleaning (flush-and-fill)
 ```
+
+### chunk.yaml
+```yaml
+input_dir: cleaned
+output_dir: chunks
+chunk_size: 1200
+chunk_overlap: 150
+headers: "#,##,###,####,#####,######"
+strategy: "smart"
+max_header_level: 3
+flush: true
+```
+
+Configuration variables:
+- **flush** (default: false): When true, deletes the entire output directory before processing. Ensures clean state and removes orphaned chunks from previous runs. Can be overridden with `--flush` or `--no-flush` flags.
+- **strategy** (default: "smart"): Chunking strategy to use. See "Chunking Strategy Details" section above.
+- **chunk_size** (default: 1200): Target size in characters for each chunk. After splitting by headers, any section exceeding this size will be split further into smaller chunks.
+- **chunk_overlap** (default: 150): Number of characters to overlap between consecutive chunks. Helps maintain context across chunk boundaries for better AI/ML processing.
+- **max_header_level** (default: 3): Maximum header level for smart strategy splits (1-6).
+- **headers** (default: all 6 levels): Comma-separated list of header levels to split on (e.g., "#,##,###"). Used by legacy strategy.
 
 ### clean_rules/[domain].yaml
 Site-specific cleaning rules with pattern matching:

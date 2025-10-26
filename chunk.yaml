@@ -16,3 +16,21 @@ chunk_overlap: 150
 # Comma-separated heading levels to split on
 # Use # for H1, ## for H2, etc.
 headers: "#,##,###,####,#####,######"
+
+# Chunking strategy to use
+# Options:
+#   - "smart": Smart header-aware splitter (recommended)
+#              Finds last high-level header before chunk_size limit
+#              Avoids tiny chunks and respects document structure
+#   - "legacy": Original two-stage LangChain splitter
+#              Splits at all headers, then splits large sections
+strategy: "smart"
+
+# Maximum header level for smart strategy (1-6)
+# Only used when strategy="smart"
+# 1 = only H1, 2 = H1-H2, 3 = H1-H3, etc.
+max_header_level: 3
+
+# Flush output directory before chunking (removes all existing chunks)
+# When true, deletes the entire output directory before processing
+flush: true

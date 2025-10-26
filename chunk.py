@@ -36,6 +36,13 @@ except ImportError:
           "Install with: pip install langchain-text-splitters", file=sys.stderr)
     sys.exit(1)
 
+# Import custom chunking strategies
+try:
+    from smart_chunker import SmartHeaderTextSplitter, LegacyLangChainSplitter
+except ImportError as e:
+    print(f"Error importing smart_chunker: {e}", file=sys.stderr)
+    sys.exit(1)
+
 
 # ---------- utils ----------
 SLUG_SAFE = re.compile(r"[^a-zA-Z0-9._-]+")
@@ -94,45 +101,74 @@ def chunk_markdown_text(
     headers_to_split_on: List[Tuple[str, str]],
     chunk_size: int,
     chunk_overlap: int,
+    strategy: str = "smart",
+    max_header_level: int = 3,
 ) -> List[Dict]:
     """
-    Returns a list of dict chunks:
-      {
-        "text": "...",                 # chunk body (no front matter)
-        "section_meta": {...},         # header mapping from LC
-        "section_breadcrumb": [...],   # ordered breadcrumb titles
-        "section_level": int,          # depth (1..6; 0 if no headers)
-      }
+    Returns a list of dict chunks using specified strategy.
+
+    Args:
+        text: Markdown text to chunk
+        headers_to_split_on: List of (header, name) tuples (for legacy strategy)
+        chunk_size: Target maximum chunk size
+        chunk_overlap: Overlap between chunks
+        strategy: "smart" or "legacy"
+        max_header_level: Max header level for smart strategy (1-6)
+
+    Returns:
+        List of dict chunks:
+          {
+            "text": "...",                 # chunk body (no front matter)
+            "section_meta": {...},         # header mapping
+            "section_breadcrumb": [...],   # ordered breadcrumb titles
+            "section_level": int,          # depth (1..6; 0 if no headers)
+          }
     """
-    # 1) First split by headers to capture hierarchy (breadcrumb lives in metadata)
-    header_splitter = MarkdownHeaderTextSplitter(
-        headers_to_split_on=headers_to_split_on,
-        strip_headers=False,  # keep headings in page_content
-    )
-    header_docs = header_splitter.split_text(text)
+    if strategy == "smart":
+        # Use smart header-aware splitter
+        splitter = SmartHeaderTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            max_header_level=max_header_level,
+            strip_headers=False,
+        )
+        docs = splitter.split_text(text)
 
-    # 2) For each section, split further with MarkdownTextSplitter (code-fence aware)
-    md_splitter = MarkdownTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-    )
-
-    out_chunks: List[Dict] = []
-    for sect_doc in header_docs:
-        sect_text = sect_doc.page_content
-        sect_meta = dict(sect_doc.metadata or {})
-        breadcrumb = breadcrumb_from_metadata(sect_meta)
-        level = len(breadcrumb) if breadcrumb else 0
-
-        sub_chunks = md_splitter.split_text(sect_text)
-        for sub in sub_chunks:
+        # Convert to output format
+        out_chunks: List[Dict] = []
+        for doc in docs:
+            metadata = doc.metadata
             out_chunks.append({
-                "text": sub.strip(),
-                "section_meta": sect_meta,
-                "section_breadcrumb": breadcrumb,
-                "section_level": level,
+                "text": doc.page_content,
+                "section_meta": metadata.get('section_headers', {}),
+                "section_breadcrumb": metadata.get('section_path', []),
+                "section_level": metadata.get('section_level', 0),
             })
-    return out_chunks
+        return out_chunks
+
+    elif strategy == "legacy":
+        # Use original two-stage LangChain splitter
+        splitter = LegacyLangChainSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            headers_to_split_on=headers_to_split_on,
+        )
+        docs = splitter.split_text(text)
+
+        # Convert to output format
+        out_chunks: List[Dict] = []
+        for doc in docs:
+            metadata = doc.metadata
+            out_chunks.append({
+                "text": doc.page_content,
+                "section_meta": metadata.get('section_meta', {}),
+                "section_breadcrumb": metadata.get('section_breadcrumb', []),
+                "section_level": metadata.get('section_level', 0),
+            })
+        return out_chunks
+
+    else:
+        raise ValueError(f"Unknown chunking strategy: {strategy}. Use 'smart' or 'legacy'.")
 
 
 def build_front_matter(
@@ -147,6 +183,7 @@ def build_front_matter(
     text: str,
     chunk_size: int,
     chunk_overlap: int,
+    strategy: str = "smart",
     original_frontmatter: Dict[str, Any] = None,
 ) -> str:
     """
@@ -155,6 +192,14 @@ def build_front_matter(
     """
     # Start with original frontmatter if provided
     fm = dict(original_frontmatter) if original_frontmatter else {}
+
+    # Determine splitter name based on strategy
+    if strategy == "smart":
+        splitter_name = "SmartHeaderTextSplitter"
+    elif strategy == "legacy":
+        splitter_name = "MarkdownHeaderTextSplitter+MarkdownTextSplitter"
+    else:
+        splitter_name = strategy
 
     # Add/update chunk-specific metadata
     chunk_meta = {
@@ -165,10 +210,10 @@ def build_front_matter(
         "total_chunks": total_chunks_in_file,
         "section_path": section_breadcrumb,             # ordered list of headers
         "section_level": section_level,
-        "section_headers": section_meta,                 # raw header map from LangChain
+        "section_headers": section_meta,                 # raw header map
         "char_count": len(text),
         "word_count": len(text.split()),
-        "splitter": "MarkdownHeaderTextSplitter+MarkdownTextSplitter",
+        "splitter": splitter_name,
         "chunk_size": chunk_size,
         "chunk_overlap": chunk_overlap,
     }
@@ -207,6 +252,8 @@ def process_file(
     chunk_overlap: int,
     headers_to_split_on: List[Tuple[str, str]],
     root_path: Path,
+    strategy: str = "smart",
+    max_header_level: int = 3,
 ) -> int:
     full_text = read_text(src_path)
     # Parse frontmatter from the original file
@@ -216,6 +263,8 @@ def process_file(
         headers_to_split_on=headers_to_split_on,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        strategy=strategy,
+        max_header_level=max_header_level,
     )
     total = len(chunks)
     rel_src = src_path.relative_to(root_path)
@@ -233,6 +282,7 @@ def process_file(
             text=ch["text"],
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            strategy=strategy,
             original_frontmatter=original_frontmatter,
         )
         body = ch["text"]
@@ -281,6 +331,8 @@ def main():
     ap.add_argument("--headers",
                     help="Comma-separated heading levels to split on (e.g. '#,##,###')")
     ap.add_argument("--config", default="chunk.yaml", help="Path to configuration file (default: chunk.yaml)")
+    ap.add_argument("--flush", action="store_true", help="Delete output directory before chunking")
+    ap.add_argument("--no-flush", action="store_true", help="Do not delete output directory (overrides config)")
     args = ap.parse_args()
 
     # Load config file
@@ -292,6 +344,16 @@ def main():
     chunk_size = args.chunk_size if args.chunk_size is not None else config.get("chunk_size", 1200)
     chunk_overlap = args.chunk_overlap if args.chunk_overlap is not None else config.get("chunk_overlap", 150)
     headers_arg = args.headers or config.get("headers", "#,##,###,####,#####,######")
+    strategy = config.get("strategy", "smart")
+    max_header_level = config.get("max_header_level", 3)
+
+    # Determine flush behavior (CLI args override config)
+    if args.no_flush:
+        flush = False
+    elif args.flush:
+        flush = True
+    else:
+        flush = config.get("flush", False)
 
     # Validate required arguments
     if not input_arg:
@@ -303,6 +365,13 @@ def main():
 
     input_path = Path(input_arg).resolve()
     out_root = Path(out_arg).resolve()
+
+    # Flush output directory if requested
+    if flush and out_root.exists():
+        import shutil
+        shutil.rmtree(out_root)
+        print(f"Flushed output directory: {out_root}\n")
+
     ensure_dir(out_root)
 
     headers_to_split_on = parse_headers_arg(headers_arg)
@@ -319,6 +388,11 @@ def main():
         sys.exit(2)
 
     total_chunks = 0
+    print(f"Using chunking strategy: {strategy}")
+    if strategy == "smart":
+        print(f"Max header level: {max_header_level}")
+    print()
+
     for f in files:
         count = process_file(
             src_path=f,
@@ -327,9 +401,11 @@ def main():
             chunk_overlap=chunk_overlap,
             headers_to_split_on=headers_to_split_on,
             root_path=root_path,
+            strategy=strategy,
+            max_header_level=max_header_level,
         )
         total_chunks += count
-        print(f"[OK] {f} → {count} chunks")
+        print(f"[OK] {f.name} → {count} chunks")
 
     print(f"\nDone. Wrote {total_chunks} chunks into: {out_root}")
 

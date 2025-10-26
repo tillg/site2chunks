@@ -7,6 +7,11 @@ delete_files:
   - hackingwithswift.com_update-policy.md
   - hackingwithswift.com_videos.md
   - hackingwithswift.com.md
+  - hackingwithswift.com_samples_friendface.json.md  # JSON data file
+  - hackingwithswift.com_articles_rss.md  # RSS feed dump
+  - hackingwithswift.com_playgrounds_feed.json.md  # Playgrounds JSON feed
+  - hackingwithswift.com_forums_plus_search-tokens-not-working_29015.md  # Forum post
+  - hackingwithswift.com_forums_plus.md  # Forums index page
 
 rules:
   # Remove navigation menu (appears at top of every page)

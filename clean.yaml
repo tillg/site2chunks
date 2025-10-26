@@ -23,3 +23,7 @@ pattern: "*.md"
 
 # Enable dry-run mode (preview changes without modifying files)
 dry_run: false
+
+# Flush output directory before cleaning (removes all existing files)
+# When true, deletes the entire output directory before processing
+flush: true

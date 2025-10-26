@@ -44,7 +44,9 @@ The pipeline comprises multiple steps:
    * Site-specific rules defined in YAML configuration
 3. **Summarize** Add summaries to the MD files (TODO 🛑)
 4. **Chunk** the MD files to small MD files ✅
-   * Offer different chunker strategies 🛑
+   * Smart header-aware chunking strategy (default) ✅
+   * Legacy two-stage LangChain strategy ✅
+   * Configurable via chunk.yaml ✅
 5. **Merge** the chunks to one big JSON so it can be added to an App bundle ✅
 6. **GenerateQA** Generate test questions for retrieval evaluation ✅
    * Extract existing interview questions from content
@@ -265,7 +267,14 @@ TODO
 
 ### 4. Chunking Markdown Files
 
-Split markdown files into smaller chunks for AI/ML processing while preserving frontmatter:
+Split markdown files into smaller chunks for AI/ML processing while preserving frontmatter. Supports two chunking strategies:
+
+**Smart Strategy (Default)**: Intelligent, content-aware chunking that:
+- Finds natural breakpoints at high-level headers (H1-H3 by default)
+- Avoids tiny chunks by merging small pre-header content
+- Respects document hierarchy and semantic structure
+
+**Legacy Strategy**: Original two-stage approach using LangChain splitters
 
 ```bash
 # Using config file (recommended): reads settings from chunk.yaml
@@ -279,6 +288,12 @@ python3 chunk.py cleaned/file.md --out chunks
 
 # Custom chunk size and overlap
 python3 chunk.py cleaned/ --out chunks --chunk-size 1500 --chunk-overlap 200
+
+# Flush output directory before chunking (clean slate)
+python3 chunk.py --flush
+
+# Disable flushing (keep existing chunks)
+python3 chunk.py --no-flush
 ```
 
 #### Configuration File (chunk.yaml)
@@ -298,9 +313,18 @@ chunk_size: 1200
 # Character overlap between consecutive chunks
 chunk_overlap: 150
 
-# Comma-separated heading levels to split on
-# Use # for H1, ## for H2, etc.
+# Comma-separated heading levels to split on (legacy strategy only)
 headers: "#,##,###,####,#####,######"
+
+# Chunking strategy: "smart" (recommended) or "legacy"
+strategy: "smart"
+
+# Maximum header level for smart strategy (1-6)
+# 1 = only H1, 2 = H1-H2, 3 = H1-H3, etc.
+max_header_level: 3
+
+# Flush output directory before chunking (removes existing chunks)
+flush: true
 ```
 
 When `chunk.yaml` exists, you can simply run:
@@ -310,12 +334,18 @@ python3 chunk.py
 
 Command-line arguments will override config file settings.
 
+**Chunking Strategies:**
+- **Smart** (default): Splits at last high-level header before chunk_size limit, merges small first chunks
+- **Legacy**: Two-stage splitting using MarkdownHeaderTextSplitter + MarkdownTextSplitter
+
 Each chunk preserves the original frontmatter and adds:
-- `chunk_id`: Unique chunk identifier
-- `chunk_index`: Position in the source file
+- `chunk_id`: Unique chunk identifier (UUID)
+- `chunk_index`: Position in the source file (0-based)
 - `total_chunks`: Total number of chunks from source
 - `section_path`: Hierarchical breadcrumb of headers
+- `section_level`: Depth in document hierarchy (1-6)
 - `char_count` and `word_count`: Size metrics
+- `splitter`: Algorithm used (SmartHeaderTextSplitter or MarkdownHeaderTextSplitter+MarkdownTextSplitter)
 
 ### 5. Merging Chunks to JSON
 
