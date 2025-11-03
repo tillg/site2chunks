@@ -5,8 +5,10 @@ md_to_chunks.py — Markdown → hierarchy-aware chunks → .md files with YAML 
 - Uses LangChain's MarkdownHeaderTextSplitter to split on headings (H1..H6).
 - Uses MarkdownTextSplitter to further chunk long sections without breaking code fences.
 - Emits one .md file per chunk with YAML front matter containing useful metadata.
+- Supports configuration sets for managing multiple sites.
 
 Usage:
+  python chunk.py hackingwithswift  # Using config set
   python md_to_chunks.py /path/to/input_dir --out /path/to/output_dir \
       --chunk-size 1200 --chunk-overlap 150 \
       --headers "#,##,###,####,#####,######"
@@ -24,6 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 
 import frontmatter_utils
+from config_loader import load_config_set, list_config_sets, ConfigSetNotFoundError
 
 # --- deps ---
 try:
@@ -324,36 +327,74 @@ def load_config(config_path: Path = None) -> Dict[str, Any]:
 
 def main():
     ap = argparse.ArgumentParser(description="Chunk Markdown files into per-chunk .md with YAML front matter.")
-    ap.add_argument("input", nargs='?', help="Input file or directory of Markdown files")
+    ap.add_argument("config_set", nargs='?', default=None, help="Name of configuration set in config/ directory (optional)")
+    ap.add_argument("input", nargs='?', help="Input file or directory of Markdown files (optional if config set specified)")
     ap.add_argument("--out", help="Output directory root")
     ap.add_argument("--chunk-size", type=int, help="Target chunk size (characters)")
     ap.add_argument("--chunk-overlap", type=int, help="Character overlap between chunks")
     ap.add_argument("--headers",
                     help="Comma-separated heading levels to split on (e.g. '#,##,###')")
-    ap.add_argument("--config", default="chunk.yaml", help="Path to configuration file (default: chunk.yaml)")
+    ap.add_argument("--strategy", help="Chunking strategy: 'smart' or 'legacy'")
+    ap.add_argument("--max-header-level", type=int, help="Max header level for smart strategy (1-6)")
+    ap.add_argument("--config", default="chunk.yaml", help="Path to configuration file (default: chunk.yaml) - for legacy mode")
     ap.add_argument("--flush", action="store_true", help="Delete output directory before chunking")
     ap.add_argument("--no-flush", action="store_true", help="Do not delete output directory (overrides config)")
     args = ap.parse_args()
 
-    # Load config file
-    config = load_config(Path(args.config))
+    # Try to load config set if provided
+    config_set = None
+    if args.config_set:
+        try:
+            config_set = load_config_set(args.config_set)
+            print(f"Loaded configuration set: {args.config_set}")
+        except ConfigSetNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
 
-    # Command-line arguments override config file
-    input_arg = args.input or config.get("input_dir")
-    out_arg = args.out or config.get("output_dir")
-    chunk_size = args.chunk_size if args.chunk_size is not None else config.get("chunk_size", 1200)
-    chunk_overlap = args.chunk_overlap if args.chunk_overlap is not None else config.get("chunk_overlap", 150)
-    headers_arg = args.headers or config.get("headers", "#,##,###,####,#####,######")
-    strategy = config.get("strategy", "smart")
-    max_header_level = config.get("max_header_level", 3)
+    # Determine parameters based on priority: CLI args > config set > legacy config > defaults
+    if config_set:
+        # Using config set
+        chunking_config = config_set.get_chunking_config()
 
-    # Determine flush behavior (CLI args override config)
-    if args.no_flush:
-        flush = False
-    elif args.flush:
-        flush = True
+        # Get paths from config set
+        input_arg = args.input or str(config_set.get_cleaned_dir())
+        out_arg = args.out or str(config_set.get_chunks_dir())
+
+        # Get chunking parameters (CLI args override config)
+        chunk_size = args.chunk_size if args.chunk_size is not None else chunking_config.get("chunk_size", 1200)
+        chunk_overlap = args.chunk_overlap if args.chunk_overlap is not None else chunking_config.get("chunk_overlap", 150)
+        headers_arg = args.headers or chunking_config.get("headers", "#,##,###,####,#####,######")
+        strategy = args.strategy or chunking_config.get("strategy", "smart")
+        max_header_level = args.max_header_level if args.max_header_level is not None else chunking_config.get("max_header_level", 3)
+
+        # Determine flush behavior (CLI args override config)
+        if args.no_flush:
+            flush = False
+        elif args.flush:
+            flush = True
+        else:
+            flush = chunking_config.get("flush", False)
+
     else:
-        flush = config.get("flush", False)
+        # Load legacy config file
+        config = load_config(Path(args.config))
+
+        # Command-line arguments override config file
+        input_arg = args.input or config.get("input_dir")
+        out_arg = args.out or config.get("output_dir")
+        chunk_size = args.chunk_size if args.chunk_size is not None else config.get("chunk_size", 1200)
+        chunk_overlap = args.chunk_overlap if args.chunk_overlap is not None else config.get("chunk_overlap", 150)
+        headers_arg = args.headers or config.get("headers", "#,##,###,####,#####,######")
+        strategy = args.strategy or config.get("strategy", "smart")
+        max_header_level = args.max_header_level if args.max_header_level is not None else config.get("max_header_level", 3)
+
+        # Determine flush behavior (CLI args override config)
+        if args.no_flush:
+            flush = False
+        elif args.flush:
+            flush = True
+        else:
+            flush = config.get("flush", False)
 
     # Validate required arguments
     if not input_arg:

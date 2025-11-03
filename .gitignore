@@ -13,7 +13,10 @@ dist/
 build/
 *.egg
 
-# Scraped content
+# Data directories (generated content) - config sets feature
+data/
+
+# Scraped content (legacy directories)
 scrapes/
 cleaned/
 cleaned_scrapes/

@@ -1,0 +1,415 @@
+# Configuration Set Metadata
+config_set:
+  name: a12_widgets
+  description: "A12 Widgets showcase"
+  version: 1.0
+
+# Data directory paths
+# Relative paths are resolved relative to project root
+# Use {data_dir} variable for cleaner path references
+paths:
+  data_dir: data/a12_widgets
+  scrapes_dir: "{data_dir}/scrapes"
+  cleaned_dir: "{data_dir}/cleaned"
+  chunks_dir: "{data_dir}/chunks"
+  merged_file: "{data_dir}/merged.json"
+  urls_file: urls.txt
+  state_dir: "{data_dir}"
+
+# Scraping Configuration
+scraping:
+  recursive: true
+  max_hops: 2
+  skip_patterns:
+    - "*/login"
+    - "*/register"
+    - "*/auth/*"
+    - "*.zip"
+    - "*.pdf"
+    - "*.jpg"
+    - "*.png"
+    - "*.gif"
+    - "*.svg"
+    - "*.mp4"
+    - "*.mp3"
+  state_files:
+    urls_to_scrape: urls_to_scrape.txt
+    urls_scraped: urls_scraped.txt
+  ignore_scraping_state: false
+
+# Cleaning Configuration
+cleaning:
+  pattern: "*.md"
+  dry_run: false
+  flush: true
+  site: hackingwithswift.com
+
+  # Files to delete entirely (no content value)
+  delete_files:
+    - hackingwithswift.com_unwrap.md
+    - hackingwithswift.com_update-policy.md
+    - hackingwithswift.com_videos.md
+    - hackingwithswift.com.md
+    - hackingwithswift.com_samples_friendface.json.md
+    - hackingwithswift.com_articles_rss.md
+    - hackingwithswift.com_playgrounds_feed.json.md
+    - hackingwithswift.com_forums_*.md
+
+  # Cleaning rules
+  rules:
+    # Remove navigation menu (appears at top of every page)
+    - type: section_boundary
+      description: "Navigation menu"
+      start_marker: "- [Forums](/forums)"
+      end_marker: "- [SUBSCRIBE](/plus)"
+      inclusive: true
+
+    # Remove promotional book banner (appears after nav on some pages)
+    - type: exact_match
+      description: "Book promotional banner"
+      pattern: "[NEW BOOK: **Code got you started. This gets you *paid*.** >>](/store/everything-but-the-code)"
+      max_remove: -1
+
+    # Remove sponsored content blocks
+    - type: regex
+      description: "Sponsored content blocks"
+      pattern: '\*\*SPONSORED\*\*[^\n]*\n\n\[[^\]]+\]\([^\)]+\)\n'
+      flags: [MULTILINE]
+
+    # Remove footer sections starting with store link
+    - type: section_boundary
+      description: "Footer content and social links"
+      start_marker: "[Click here to visit the Hacking with Swift store >>](/store)"
+      end_marker: "Link copied to your pasteboard."
+      inclusive: true
+
+    # Alternative footer pattern (some pages have different footer)
+    - type: section_boundary
+      description: "Alternative footer starting with Back to..."
+      start_marker: "[Back to 100 Days of Swift](/100)"
+      end_marker: "Link copied to your pasteboard."
+      inclusive: true
+
+    # Alternative footer starting with social media links (empty H4 headers)
+    - type: regex
+      description: "Footer with social media links and legal text"
+      pattern: '\[####\s*\n\nTwitter\]\(https://twitter\.com/twostraws\).*?Hacking with Swift is ©\d{4} \[Hudson Heavy Industries\]\(https://www\.hudson\.uk\)\.'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove "Need help?" CTAs
+    - type: line_pattern
+      description: "Need help tweet prompts"
+      pattern: '^Need help\? Tweet me \[@twostraws\]'
+
+    # Remove login status messages
+    - type: exact_match
+      description: "Login status messages"
+      pattern: "You are not logged in"
+      max_remove: -1
+
+    - type: exact_match
+      description: "Login prompts"
+      pattern: "[Log in or create account](/login)"
+      max_remove: -1
+
+    - type: exact_match
+      description: "Pasteboard messages"
+      pattern: "Link copied to your pasteboard."
+      max_remove: -1
+
+    # Remove empty header markers (social media section markers and standalone H2)
+    - type: line_pattern
+      description: "Empty H4 header markers"
+      pattern: '^####\s*$'
+
+    - type: regex
+      description: "Empty H2 header markers with surrounding blanks"
+      pattern: '\n##\s*\n\n'
+      flags: [MULTILINE]
+
+    # Remove "Back to X" navigation links that appear mid-content
+    - type: regex
+      description: "Back navigation links"
+      pattern: '\[Back to [^\]]+\]\([^\)]+\)'
+      flags: [MULTILINE]
+
+    # Remove RSS feed links
+    - type: line_pattern
+      description: "RSS feed links"
+      pattern: '\[Subscribe to our RSS feed\]'
+
+    # Remove newsletter subscription headings
+    - type: regex
+      description: "Newsletter subscription sections"
+      pattern: '### Subscribe to my monthly newsletter\n\nGet a free book delivered.*?\n\nSubscribe'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove Slack join sections
+    - type: regex
+      description: "Slack community sections"
+      pattern: '### Join us on Slack!.*?\[JOIN HERE\]\(/slack\)'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove "Get the app" promotional sections
+    - type: regex
+      description: "App download promotional sections"
+      pattern: '### Get the app!.*?with Unwrap:.*?completely free with no in-app purchases!'
+      flags: [MULTILINE, DOTALL]
+
+    # Clean up "About Me" sections in footer
+    - type: regex
+      description: "About Me footer sections"
+      pattern: '## About Me\n\nMy name is Paul Hudson.*?Want to know more about me\? Click here.*?\]\.'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove article category tags
+    - type: regex
+      description: "Article category tags"
+      pattern: '^######\s+\[[A-Z\s]+\]\(/articles/category/[^\)]+\)'
+      flags: [MULTILINE]
+
+    # Remove "Read Full Article" links
+    - type: line_pattern
+      description: "Read full article links"
+      pattern: '^\[Read Full Article\]'
+
+    # Remove "Continue reading" links
+    - type: line_pattern
+      description: "Continue reading links"
+      pattern: '^\[Continue reading'
+
+    # Remove "Read more" links
+    - type: line_pattern
+      description: "Read more links"
+      pattern: '^\[Read more'
+
+    # Remove "Older Posts" navigation
+    - type: line_pattern
+      description: "Older posts navigation"
+      pattern: '^\[Older Posts\]'
+
+    # Remove interview questions link
+    - type: line_pattern
+      description: "See full list of iOS interview questions link"
+      pattern: '^\[See the full list of iOS interview questions\]'
+
+    # Remove return to review menu link
+    - type: line_pattern
+      description: "Return to Review Menu navigation link"
+      pattern: '^\[Return to Review Menu\]'
+
+    # Remove standalone "Subscribe" text
+    - type: line_pattern
+      description: "Standalone Subscribe text"
+      pattern: '^Subscribe$'
+
+    # Remove feedback form sections
+    - type: regex
+      description: "Feedback/improvement form sections"
+      pattern: 'How can this day be improved\?\n\nGreat job on finishing another day!.*?Thank you!'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove "share your progress" social media prompts
+    - type: regex
+      description: "Share progress Twitter prompts"
+      pattern: '## Now share your progress…\n\nIf you use Twitter.*?\[Tweet\]\(https://twitter.com/share\)'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove page rating widgets
+    - type: regex
+      description: "Page usefulness rating widgets"
+      pattern: 'Was this page useful\? Let us know!\n\n1\n2\n3\n4\n5\n\n(?:Average rating:.*?\n\n)?Thank you!'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove "BUY OUR BOOKS" promotional headers
+    - type: exact_match
+      description: "Buy our books promotional text"
+      pattern: "**BUY OUR BOOKS**"
+      max_remove: -1
+
+    # Remove forum reply blocks
+    - type: regex
+      description: "Forum reply to topic blocks"
+      pattern: '### Reply to this topic…\n\nYou need to \[create an account or log in\]\(/login\?return=[^\)]+\) to reply\.\n\nAll interactions here are governed by our \[code of conduct\]\(/conduct\)\.'
+      flags: [MULTILINE]
+
+    # Remove "100 Days of Swift/SwiftUI" promotional blocks
+    - type: regex
+      description: "100 Days of Swift/SwiftUI promotional blocks"
+      pattern: '## 100 Days of Swift(?:UI)?\n\n---\n\nThe 100 Days of Swift(?:UI)? is a free collection of videos, tutorials, tests, and more to help you learn Swift(?:UI)? faster\. \[Click here to learn more\]\(/100(?:/swiftui)?\), or watch the video below\.'
+      flags: [MULTILINE]
+
+    # Remove social sharing blocks with copy-paste text
+    - type: section_boundary
+      description: "Social sharing copy-paste blocks"
+      start_marker: "Alternatively, copy and paste the text below to your preferred social network"
+      end_marker: "via @twostraws"
+      inclusive: true
+
+    # Remove "Have some questions about..." chat prompts
+    - type: regex
+      description: "Have some questions chat prompts"
+      pattern: '### Have some questions about .+?\?\n\nHit Send below to start a virtual conversation with me\.'
+      flags: [MULTILINE]
+
+    # Remove "Found X articles in the Swift Knowledge Base" headers
+    - type: regex
+      description: "Swift Knowledge Base article count headers"
+      pattern: '### Found \d+ articles? in the \[Swift Knowledge Base\]\(/example-code\) for this category\.'
+      flags: [MULTILINE]
+
+    # Remove "About the Swift Knowledge Base" sections
+    - type: section_boundary
+      description: "About the Swift Knowledge Base promotional sections"
+      start_marker: "### About the Swift Knowledge Base"
+      end_marker: "Was this page useful? Let us know!"
+      inclusive: true
+
+    # Remove HWS+ "SELECT A CATEGORY" navigation section
+    - type: regex
+      description: "HWS+ SELECT A CATEGORY section"
+      pattern: '^###### SELECT A CATEGORY\n\n(?:- \[(?:\*\*)?.+?(?:\*\*)?\]\(/plus/[^\)]+\)\n)+\n'
+      flags: [MULTILINE]
+
+    # Remove HWS+ "COURSES BY CATEGORY" navigation section
+    - type: regex
+      description: "HWS+ COURSES BY CATEGORY section"
+      pattern: '^###### COURSES BY CATEGORY\n\n(?:- \[(?:\*\*)?.+?(?:\*\*)?\]\(/plus/[^\)]+\)\n)+\n'
+      flags: [MULTILINE]
+
+    # Remove HWS+ membership promotional sections
+    - type: section_boundary
+      description: "HWS+ membership features promotion"
+      start_marker: "## Hacking with Swift+ membership includes…"
+      end_marker: "#### A free ticket to Unwrap Live every year"
+      inclusive: true
+
+    # Remove article listings at end of article pages
+    - type: regex
+      description: "Related articles listing section"
+      pattern: '\[More articles\]\(/articles\).*'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove interactive quiz UI elements
+    - type: regex
+      description: "Interactive quiz UI elements"
+      pattern: '^(?:True|False|Choose Option \d+)\n(?:(?:True|False|Choose Option \d+)\n)+\nCorrect!.*?\n\nOops.*?\n\nContinue$'
+      flags: [MULTILINE, DOTALL]
+
+    # Remove Swift version playground download and browse links
+    - type: regex
+      description: "Swift version playground download and navigation links"
+      pattern: '^\[Download all Swift [\d.]+ changes as a playground\]\(/files/playgrounds/swift/playground[^\)]+\)\n \[Link to Swift [\d.]+ changes\]\(/swift/[\d.]+\)\n\n\[Browse changes in all Swift versions\]\(/swift\)$'
+      flags: [MULTILINE]
+
+    # Remove author bylines with social media links
+    - type: regex
+      description: "Author byline with social media"
+      pattern: '^\[Paul Hudson\]\(/about\).*?@twostraws.*?$'
+      flags: [MULTILINE]
+
+    # Remove previous/next navigation tables (multi-row format with headers)
+    - type: regex
+      description: "Previous/next navigation tables"
+      pattern: '^\|  \|  \|  \|\n\| --- \| --- \| --- \|\n\| \[<.*?\] \|  \| \[.*?>\] \|$'
+      flags: [MULTILINE]
+
+    # Remove single-row navigation tables
+    - type: regex
+      description: "Single-row previous/next/ToC navigation tables"
+      pattern: '^\|\s\[<\s[^\]]+\]\([^\)]+\)\s\|\s{1,2}\|\s\[[^\]]+\]\([^\)]+\)\s\|$'
+      flags: [MULTILINE]
+
+    # Remove table of contents navigation rows
+    - type: regex
+      description: "Table of contents navigation row"
+      pattern: '^\| \[Table of Contents\].*?\| \| \|$'
+      flags: [MULTILINE]
+
+    # Remove empty table structures
+    - type: regex
+      description: "Empty table rows"
+      pattern: '^\|  \|  \|  \|\n\| --- \| --- \| --- \|$'
+      flags: [MULTILINE]
+
+    # Remove HWS+ subscription promotional text
+    - type: regex
+      description: "Subscription promotional text"
+      pattern: 'If you don.t already subscribe, you can start a free trial.*?\.?$'
+      flags: [MULTILINE, IGNORECASE]
+
+    # Remove interview question "Important notes" section
+    - type: section_boundary
+      description: "Interview question boilerplate notes"
+      start_marker: "## Important notes"
+      end_marker: "## Related questions"
+      inclusive: true
+
+    # Remove interview question "Related questions" section
+    - type: section_boundary
+      description: "Related questions link list"
+      start_marker: "## Related questions"
+      end_marker: null
+      inclusive: true
+
+    # Remove "Review what you learned" boilerplate sections
+    - type: section_boundary
+      description: "Review section boilerplate explanations"
+      start_marker: "## Review what you learned"
+      end_marker: "## Challenge"
+      inclusive: false
+
+    # Remove "Watch me answer this question" video CTA links
+    - type: line_pattern
+      description: "Video CTA links"
+      pattern: '^\[Watch me answer this question.*?\]\(/plus/.*?\)$'
+
+    # Remove "Continue Reading >>" truncation teasers
+    - type: regex
+      description: "Continue reading teasers"
+      pattern: '\.\.\.\s*\[Continue Reading >>?\]\(.*?\)$'
+      flags: [MULTILINE]
+
+    # Remove "Other changes in Swift X.X" lists
+    - type: section_boundary
+      description: "Other changes in Swift version lists"
+      start_marker: "### Other changes in Swift"
+      end_marker: null
+      inclusive: true
+
+    # Remove HWS+ membership badges from forum posts
+    - type: regex
+      description: "HWS+ membership badges"
+      pattern: '\[HWS\+\]\(/plus ".*?"\)'
+      flags: [MULTILINE]
+
+    # Remove relative timestamps from forum posts
+    - type: regex
+      description: "Relative timestamps from forum posts"
+      pattern: '\s+\d+[dhm]\s*$'
+      flags: [MULTILINE]
+
+    # Remove empty bullet points
+    - type: line_pattern
+      description: "Empty bullet points"
+      pattern: '^-\s*$'
+
+    # Clean up empty H2 headings left behind after content removal (run at end)
+    - type: regex
+      description: "Empty H2 headings cleanup (final pass)"
+      pattern: '\n\n##\s*\n'
+      flags: [MULTILINE]
+
+# Chunking Configuration
+chunking:
+  chunk_size: 1200
+  chunk_overlap: 150
+  strategy: "smart"
+  max_header_level: 3
+  headers: "#,##,###,####,#####,######"
+  flush: true
+
+# Merging Configuration
+merging:
+  pretty: true
+  indent: 2

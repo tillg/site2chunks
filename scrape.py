@@ -4,6 +4,7 @@ Web scraper that converts web pages to markdown with frontmatter.
 Uses markdownify for HTML to markdown conversion.
 Supports recursive crawling with state management.
 Supports YAML configuration for flexible scraping rules.
+Supports configuration sets for managing multiple sites.
 """
 
 import sys
@@ -16,6 +17,7 @@ import requests
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
 import yaml
+from config_loader import load_config_set, list_config_sets, ConfigSetNotFoundError
 
 
 def match_url_pattern(url, pattern):
@@ -120,12 +122,16 @@ class URLQueue:
 
     def save_urls_to_scrape(self):
         """Save the list of URLs to scrape to file (with hop count)."""
+        # Ensure directory exists
+        self.urls_to_scrape_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.urls_to_scrape_file, 'w') as f:
             for url_data in self.urls_to_scrape:
                 f.write(json.dumps(url_data) + "\n")
 
     def save_urls_scraped(self):
         """Save the set of scraped URLs to file."""
+        # Ensure directory exists
+        self.urls_scraped_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.urls_scraped_file, 'w') as f:
             for url in sorted(self.urls_scraped):
                 f.write(f"{url}\n")
@@ -542,12 +548,18 @@ def main():
 
     parser = argparse.ArgumentParser(
         description='Scrape web pages and convert to markdown with frontmatter',
-        epilog='Supports recursive crawling with state management. Can be configured via scrape.yaml.'
+        epilog='Supports recursive crawling with state management. Can be configured via scrape.yaml or config sets.'
+    )
+    parser.add_argument(
+        'config_set',
+        nargs='?',
+        default=None,
+        help='Name of configuration set in config/ directory (optional)'
     )
     parser.add_argument(
         'input',
         nargs='?',
-        help='URL to scrape OR path to file containing URLs (optional if scrape.yaml exists)'
+        help='URL to scrape OR path to file containing URLs (optional if config set or scrape.yaml exists)'
     )
     parser.add_argument(
         '-o', '--output',
@@ -573,7 +585,7 @@ def main():
     parser.add_argument(
         '--config',
         default='scrape.yaml',
-        help='Path to configuration file (default: scrape.yaml)'
+        help='Path to configuration file (default: scrape.yaml) - for legacy mode'
     )
     parser.add_argument(
         '--max-hops',
@@ -590,35 +602,71 @@ def main():
 
     args = parser.parse_args()
 
-    # Try to load config file
-    config = load_config(args.config)
+    # Try to load config set if provided
+    config_set = None
+    if args.config_set:
+        try:
+            config_set = load_config_set(args.config_set)
+            print(f"Loaded configuration set: {args.config_set}")
+        except ConfigSetNotFoundError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
 
-    # Determine parameters (command line args override config file)
-    if config:
-        urls_file = args.input if args.input else config.get('urls_file', 'urls.txt')
-        output_dir = args.output if args.output else config.get('output_dir', 'scrapes')
-        recursive = args.recursive if args.recursive is not None else config.get('recursive', False)
-        max_hops = args.max_hops if args.max_hops is not None else config.get('max_hops')
-        skip_patterns = args.skip_patterns if args.skip_patterns else config.get('skip_patterns', [])
-        state_files = config.get('state_files', {
+    # Determine parameters based on priority: CLI args > config set > legacy config > defaults
+    if config_set:
+        # Using config set
+        scraping_config = config_set.get_scraping_config()
+
+        # Get paths from config set
+        urls_file = args.input if args.input else str(config_set.get_urls_file())
+        output_dir = args.output if args.output else str(config_set.get_scrapes_dir())
+        state_dir = config_set.get_state_dir()
+
+        # Get scraping parameters (CLI args override config)
+        recursive = args.recursive if args.recursive is not None else scraping_config.get('recursive', False)
+        max_hops = args.max_hops if args.max_hops is not None else scraping_config.get('max_hops')
+        skip_patterns = args.skip_patterns if args.skip_patterns else scraping_config.get('skip_patterns', [])
+        ignore_state = args.ignore_scraping_state or scraping_config.get('ignore_scraping_state', False)
+
+        # State files from config set (stored in data directory)
+        state_files_config = scraping_config.get('state_files', {
             'urls_to_scrape': 'urls_to_scrape.txt',
             'urls_scraped': 'urls_scraped.txt'
         })
-        ignore_state = args.ignore_scraping_state or config.get('ignore_scraping_state', False)
-    else:
-        # No config file - use command line args and defaults
-        if not args.input:
-            parser.error("input is required when no config file is present")
-        urls_file = args.input
-        output_dir = args.output if args.output else 'scrapes'
-        recursive = args.recursive if args.recursive is not None else False
-        max_hops = args.max_hops
-        skip_patterns = args.skip_patterns or []
         state_files = {
-            'urls_to_scrape': 'urls_to_scrape.txt',
-            'urls_scraped': 'urls_scraped.txt'
+            'urls_to_scrape': str(state_dir / state_files_config['urls_to_scrape']),
+            'urls_scraped': str(state_dir / state_files_config['urls_scraped'])
         }
-        ignore_state = args.ignore_scraping_state
+    else:
+        # Try to load legacy config file
+        config = load_config(args.config)
+
+        if config:
+            # Using legacy config
+            urls_file = args.input if args.input else config.get('urls_file', 'urls.txt')
+            output_dir = args.output if args.output else config.get('output_dir', 'scrapes')
+            recursive = args.recursive if args.recursive is not None else config.get('recursive', False)
+            max_hops = args.max_hops if args.max_hops is not None else config.get('max_hops')
+            skip_patterns = args.skip_patterns if args.skip_patterns else config.get('skip_patterns', [])
+            state_files = config.get('state_files', {
+                'urls_to_scrape': 'urls_to_scrape.txt',
+                'urls_scraped': 'urls_scraped.txt'
+            })
+            ignore_state = args.ignore_scraping_state or config.get('ignore_scraping_state', False)
+        else:
+            # No config - use command line args and defaults
+            if not args.input:
+                parser.error("input is required when no config file or config set is present")
+            urls_file = args.input
+            output_dir = args.output if args.output else 'scrapes'
+            recursive = args.recursive if args.recursive is not None else False
+            max_hops = args.max_hops
+            skip_patterns = args.skip_patterns or []
+            state_files = {
+                'urls_to_scrape': 'urls_to_scrape.txt',
+                'urls_scraped': 'urls_scraped.txt'
+            }
+            ignore_state = args.ignore_scraping_state
 
     # Check if input is a file or URL
     if args.file or (urls_file and Path(urls_file).exists() and urls_file.endswith('.txt')):

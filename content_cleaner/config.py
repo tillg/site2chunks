@@ -48,17 +48,8 @@ class CleaningConfig:
         self.delete_files = config_data.get('delete_files', [])
         rules_data = config_data.get('rules', [])
 
-        # Instantiate rule objects from configuration
-        for rule_config in rules_data:
-            rule_type = rule_config.get('type')
-
-            if rule_type not in self.RULE_TYPE_MAP:
-                print(f"Warning: Unknown rule type '{rule_type}', skipping")
-                continue
-
-            rule_class = self.RULE_TYPE_MAP[rule_type]
-            rule = rule_class(rule_config)
-            self.rules.append(rule)
+        # Use helper method to create rules
+        self.rules = self._create_rules_from_list(rules_data)
 
         print(f"Loaded {len(self.rules)} cleaning rules for {self.site}")
 
@@ -140,3 +131,76 @@ class CleaningConfig:
                 warnings.append(f"Rule {i} has no description")
 
         return warnings
+
+    @staticmethod
+    def _create_rules_from_list(rules_data: List[Dict[str, Any]]) -> List[CleaningRule]:
+        """
+        Create rule objects from a list of rule dictionaries.
+
+        Args:
+            rules_data: List of rule configuration dictionaries
+
+        Returns:
+            List of CleaningRule objects
+        """
+        rules = []
+        for rule_config in rules_data:
+            rule_type = rule_config.get('type')
+
+            if rule_type not in CleaningConfig.RULE_TYPE_MAP:
+                print(f"Warning: Unknown rule type '{rule_type}', skipping")
+                continue
+
+            rule_class = CleaningConfig.RULE_TYPE_MAP[rule_type]
+            rule = rule_class(rule_config)
+            rules.append(rule)
+
+        return rules
+
+
+def load_cleaning_config_from_dict(config_dict: Dict[str, Any]) -> CleaningConfig:
+    """
+    Load cleaning configuration from a dictionary (from config.yaml).
+
+    This allows loading cleaning configuration directly from a config set's
+    config.yaml file instead of a separate clean_rules file.
+
+    Args:
+        config_dict: Dictionary containing cleaning configuration with keys:
+            - site (str): Site identifier
+            - delete_files (List[str]): Files to delete
+            - rules (List[Dict]): List of cleaning rule configurations
+
+    Returns:
+        CleaningConfig object
+
+    Example:
+        config_dict = {
+            'site': 'hackingwithswift.com',
+            'delete_files': ['unwrap.md', 'videos.md'],
+            'rules': [
+                {
+                    'type': 'section_boundary',
+                    'description': 'Navigation menu',
+                    'start_marker': '- [Forums](/forums)',
+                    'end_marker': '- [SUBSCRIBE](/plus)',
+                    'inclusive': True
+                }
+            ]
+        }
+        config = load_cleaning_config_from_dict(config_dict)
+    """
+    # Create empty config object
+    config = CleaningConfig()
+
+    # Populate from dictionary
+    config.site = config_dict.get('site', '')
+    config.delete_files = config_dict.get('delete_files', [])
+
+    # Create rule objects from configuration
+    rules_data = config_dict.get('rules', [])
+    config.rules = CleaningConfig._create_rules_from_list(rules_data)
+
+    print(f"Loaded {len(config.rules)} cleaning rules for {config.site}")
+
+    return config

@@ -11,11 +11,77 @@ This is a web scraping and content processing pipeline that converts websites in
 3. Chunking markdown content for AI processing
 4. Merging chunks to JSON for app bundle integration
 
-## Commands
+## Configuration Sets (Recommended)
+
+**Configuration sets are the recommended way to manage pipeline configurations.** Each config set contains all settings for scraping, cleaning, chunking, and merging a specific website.
+
+### Quick Start with Config Sets
+
+```bash
+# Run complete pipeline for a config set
+./run_pipeline.sh hackingwithswift
+
+# Or run individual steps
+python3 scrape.py hackingwithswift
+python3 clean.py hackingwithswift
+python3 chunk.py hackingwithswift
+python3 merge.py hackingwithswift
+```
+
+### Directory Structure
+
+```
+config/                          # Configuration (version controlled)
+  hackingwithswift/
+    config.yaml                  # All pipeline configuration
+    urls.txt                     # Seed URLs
+
+data/                           # Generated data (gitignored)
+  hackingwithswift/
+    scrapes/                    # Raw scraped files
+    cleaned/                    # Cleaned markdown
+    chunks/                     # Chunked files
+    merged.json                 # Final JSON output
+    urls_to_scrape.txt          # Scraping state
+    urls_scraped.txt            # Scraping state
+```
+
+### Benefits
+
+- ✅ **Self-contained**: All configs for a site in one directory
+- ✅ **Clear separation**: Config (git) vs Data (local)
+- ✅ **Single config file**: All pipeline settings in config.yaml
+- ✅ **Simple commands**: Just pass the config set name
+- ✅ **Scalable**: Easy to add new sites
+- ✅ **Safe**: No accidental cross-site contamination
+
+### Creating a New Config Set
+
+```bash
+# 1. Create directories
+mkdir -p config/mysite
+mkdir -p data/mysite
+
+# 2. Create config.yaml (copy and customize from config/hackingwithswift/config.yaml)
+# Or see the template in feature/CONFIGURATION.md
+
+# 3. Add seed URLs
+echo "https://example.com" > config/mysite/urls.txt
+
+# 4. Run pipeline
+./run_pipeline.sh mysite
+```
+
+See `feature/CONFIGURATION.md` for complete specification and examples.
+
+## Commands (Legacy & Config Set Modes)
 
 ### Web Scraping
 ```bash
-# Using config file (recommended)
+# Using config set (recommended)
+python3 scrape.py hackingwithswift
+
+# Using legacy config file
 python3 scrape.py  # Reads settings from scrape.yaml
 
 # Or with command-line args
@@ -25,7 +91,10 @@ python3 scrape.py urls.txt --recursive --max-hops 2
 
 ### Content Cleaning
 ```bash
-# Using config file (recommended)
+# Using config set (recommended)
+python3 clean.py hackingwithswift
+
+# Using legacy config file
 python3 clean.py  # Reads settings from clean.yaml
 
 # Or with command-line args
@@ -35,12 +104,20 @@ python3 clean.py scrapes/ cleaned/ --config clean_rules/hackingwithswift.yaml
 
 ### Chunking Markdown
 ```bash
+# Using config set (recommended)
+python3 chunk.py hackingwithswift
+
+# Using legacy approach
 python3 chunk.py cleaned/ --out chunks
 python3 chunk.py cleaned/ --out chunks --chunk-size 1500 --chunk-overlap 200
 ```
 
 ### Merging to JSON
 ```bash
+# Using config set (recommended)
+python3 merge.py hackingwithswift
+
+# Using legacy approach
 python3 merge.py chunks -o merged.json --pretty
 ```
 

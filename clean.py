@@ -6,10 +6,13 @@ Clean scraped markdown files by removing non-valuable content like navigation me
 footers, sponsored content, and other boilerplate.
 
 Usage:
-    python3 clean.py [input] [output] [options]
+    python3 clean.py [config_set] [input] [output] [options]
 
 Examples:
-    # Using config file (recommended): reads settings from clean.yaml
+    # Using config set (recommended)
+    python3 clean.py hackingwithswift
+
+    # Using legacy config file: reads settings from clean.yaml
     python3 clean.py
 
     # Clean a single file
@@ -30,6 +33,8 @@ import sys
 import yaml
 from pathlib import Path
 from content_cleaner import ContentCleaner, CleaningConfig
+from content_cleaner.config import load_cleaning_config_from_dict
+from config_loader import load_config_set, list_config_sets, ConfigSetNotFoundError
 
 
 def load_config_file(config_path='clean.yaml'):
@@ -49,15 +54,22 @@ def main():
     )
 
     parser.add_argument(
+        'config_set',
+        nargs='?',
+        default=None,
+        help='Name of configuration set in config/ directory (optional)'
+    )
+
+    parser.add_argument(
         'input',
         nargs='?',
-        help='Input file or directory containing markdown files'
+        help='Input file or directory containing markdown files (optional if config set specified)'
     )
 
     parser.add_argument(
         'output',
         nargs='?',
-        help='Output file or directory (optional for dry-run, required otherwise)'
+        help='Output file or directory (optional for dry-run, required otherwise; optional if config set specified)'
     )
 
     parser.add_argument(
@@ -109,31 +121,117 @@ def main():
 
     args = parser.parse_args()
 
-    # Load config file if it exists
-    file_config = load_config_file('clean.yaml')
+    # Try to load config set if provided
+    config_set = None
+    if args.config_set:
+        try:
+            config_set = load_config_set(args.config_set)
+            print(f"Loaded configuration set: {args.config_set}")
+        except ConfigSetNotFoundError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
 
-    # Get input/output from args or config
-    input_arg = args.input or file_config.get('input_dir')
-    output_arg = args.output or file_config.get('output_dir')
-    pattern = args.pattern or file_config.get('pattern', '*.md')
-    dry_run = args.dry_run or file_config.get('dry_run', False)
-    auto_detect = args.auto_detect or file_config.get('auto_detect', False)
-    config_file = args.config or file_config.get('config_file')
-    rules_dir = file_config.get('rules_dir', 'clean_rules')
+    # Determine parameters based on priority: CLI args > config set > legacy config > defaults
+    if config_set:
+        # Using config set
+        cleaning_config_dict = config_set.get_cleaning_config()
 
-    # Determine flush behavior (CLI args override config)
-    if args.no_flush:
-        flush = False
-    elif args.flush:
-        flush = True
+        # Get paths from config set
+        input_arg = args.input or str(config_set.get_scrapes_dir())
+        output_arg = args.output or str(config_set.get_cleaned_dir())
+
+        # Get cleaning parameters (CLI args override config)
+        pattern = args.pattern or cleaning_config_dict.get('pattern', '*.md')
+        dry_run = args.dry_run or cleaning_config_dict.get('dry_run', False)
+
+        # Determine flush behavior (CLI args override config)
+        if args.no_flush:
+            flush = False
+        elif args.flush:
+            flush = True
+        else:
+            flush = cleaning_config_dict.get('flush', False)
+
+        # Load cleaning config from dictionary
+        config = load_cleaning_config_from_dict(cleaning_config_dict)
+        auto_detect = False
+        config_file = None
+        rules_dir = None
+
     else:
-        flush = file_config.get('flush', False)
+        # Load legacy config file if it exists
+        file_config = load_config_file('clean.yaml')
 
-    # Validate arguments
-    if not input_arg:
-        print("Error: Input path must be specified (via argument or clean.yaml)")
-        sys.exit(1)
+        # Get input/output from args or config
+        input_arg = args.input or file_config.get('input_dir')
+        output_arg = args.output or file_config.get('output_dir')
+        pattern = args.pattern or file_config.get('pattern', '*.md')
+        dry_run = args.dry_run or file_config.get('dry_run', False)
+        auto_detect = args.auto_detect or file_config.get('auto_detect', False)
+        config_file = args.config or file_config.get('config_file')
+        rules_dir = file_config.get('rules_dir', 'clean_rules')
 
+        # Determine flush behavior (CLI args override config)
+        if args.no_flush:
+            flush = False
+        elif args.flush:
+            flush = True
+        else:
+            flush = file_config.get('flush', False)
+
+        # Validate arguments
+        if not input_arg:
+            print("Error: Input path must be specified (via argument, config set, or clean.yaml)")
+            sys.exit(1)
+
+        # Load configuration (legacy mode)
+        config = None
+
+        if auto_detect:
+            # Need to validate input_path first for auto-detect
+            input_path = Path(input_arg)
+            if not input_path.exists():
+                print(f"Error: Input path does not exist: {input_arg}")
+                sys.exit(1)
+
+            print("Auto-detecting configuration from file...")
+            try:
+                # Get first file to detect domain
+                if input_path.is_file():
+                    sample_file = str(input_path)
+                else:
+                    files = list(input_path.glob(pattern))
+                    if not files:
+                        print(f"Error: No files matching '{pattern}' found in {input_arg}")
+                        sys.exit(1)
+                    sample_file = str(files[0])
+
+                domain = CleaningConfig.extract_domain_from_file(sample_file)
+                if not domain:
+                    print("Error: Could not extract domain from file frontmatter")
+                    sys.exit(1)
+
+                print(f"Detected domain: {domain}")
+                config_path = CleaningConfig.find_config_for_domain(domain, rules_dir)
+                print(f"Using configuration: {config_path}")
+                config = CleaningConfig(config_path)
+
+            except FileNotFoundError as e:
+                print(f"Error: {e}")
+                sys.exit(1)
+
+        elif config_file:
+            try:
+                config = CleaningConfig(config_file)
+            except FileNotFoundError as e:
+                print(f"Error: {e}")
+                sys.exit(1)
+
+        else:
+            print("Error: Either --config, --auto-detect, or clean.yaml with auto_detect:true must be specified")
+            sys.exit(1)
+
+    # Validate input path (for both config set and legacy modes)
     input_path = Path(input_arg)
     if not input_path.exists():
         print(f"Error: Input path does not exist: {input_arg}")
@@ -141,47 +239,6 @@ def main():
 
     if not dry_run and not args.preview and not output_arg:
         print("Error: Output path is required unless using --dry-run or --preview")
-        sys.exit(1)
-
-    # Load configuration
-    config = None
-
-    if auto_detect:
-        print("Auto-detecting configuration from file...")
-        try:
-            # Get first file to detect domain
-            if input_path.is_file():
-                sample_file = str(input_path)
-            else:
-                files = list(input_path.glob(pattern))
-                if not files:
-                    print(f"Error: No files matching '{pattern}' found in {input_arg}")
-                    sys.exit(1)
-                sample_file = str(files[0])
-
-            domain = CleaningConfig.extract_domain_from_file(sample_file)
-            if not domain:
-                print("Error: Could not extract domain from file frontmatter")
-                sys.exit(1)
-
-            print(f"Detected domain: {domain}")
-            config_path = CleaningConfig.find_config_for_domain(domain, rules_dir)
-            print(f"Using configuration: {config_path}")
-            config = CleaningConfig(config_path)
-
-        except FileNotFoundError as e:
-            print(f"Error: {e}")
-            sys.exit(1)
-
-    elif config_file:
-        try:
-            config = CleaningConfig(config_file)
-        except FileNotFoundError as e:
-            print(f"Error: {e}")
-            sys.exit(1)
-
-    else:
-        print("Error: Either --config, --auto-detect, or clean.yaml with auto_detect:true must be specified")
         sys.exit(1)
 
     # Validate configuration
@@ -231,7 +288,10 @@ def main():
     print(f"Input: {input_arg}")
     if output_arg:
         print(f"Output: {output_arg}")
-    print(f"Config: {config.config_path}")
+    if config_set:
+        print(f"Config: config set '{config_set.name}'")
+    elif hasattr(config, 'config_path') and config.config_path:
+        print(f"Config: {config.config_path}")
     print(f"Rules: {len(config.get_rules())}")
     print(f"Flush: {'Yes' if flush else 'No'}")
 
